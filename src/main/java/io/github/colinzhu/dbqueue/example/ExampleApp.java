@@ -1,7 +1,7 @@
 package io.github.colinzhu.dbqueue.example;
 
-import io.github.colinzhu.dbqueue.api.QueueConfig;
-import io.github.colinzhu.dbqueue.api.taskqueue.TaskQueue;
+import io.github.colinzhu.dbqueue.api.PollConfig;
+import io.github.colinzhu.dbqueue.api.manager.TaskQueueManager;
 import io.github.colinzhu.dbqueue.api.poller.TaskPoller;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Verticle;
@@ -26,13 +26,13 @@ public class ExampleApp extends AbstractVerticle {
         JDBCPool pool = getJdbcPool();
 
         ExampleTaskProcessor taskProcessorQ1 = new ExampleTaskProcessor(pool);
-        QueueConfig queueConfigQ1 = new QueueConfig("Q1", 5, Duration.ofMinutes(10), taskProcessorQ1);
-        TaskPoller pollerQ1 = new TaskPoller(vertx, pool, queueConfigQ1); // how often to fetch tasks
+        PollConfig pollConfigQ1 = new PollConfig("Q1", 5, Duration.ofMinutes(10), taskProcessorQ1);
+        TaskPoller pollerQ1 = new TaskPoller(vertx, pool, pollConfigQ1); // how often to fetch tasks
         pollerQ1.start();
 
         // put a task into one queue
         pool.withConnection(sqlConnection ->
-                TaskQueue.taskQueue().enqueue(sqlConnection, queueConfigQ1.getQueueName(), UUID.randomUUID().toString(), Duration.ofSeconds(1)));
+                TaskQueueManager.taskQueue().enqueue(sqlConnection, pollConfigQ1.getQueueName(), UUID.randomUUID().toString(), Duration.ofSeconds(1)));
     }
 
     private JDBCPool getJdbcPool() {

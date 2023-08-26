@@ -1,7 +1,7 @@
 package io.github.colinzhu.dbqueue.example;
 
 import io.github.colinzhu.dbqueue.api.Task;
-import io.github.colinzhu.dbqueue.api.taskqueue.TaskQueue;
+import io.github.colinzhu.dbqueue.api.manager.TaskQueueManager;
 import io.vertx.core.Future;
 import io.vertx.jdbcclient.JDBCPool;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +13,7 @@ import java.util.function.Function;
 @RequiredArgsConstructor
 public class ExampleTaskProcessor implements Function<Task, Future<?>> {
     private final JDBCPool pool;
-    private TaskQueue taskQueue = TaskQueue.taskQueue();
+    private TaskQueueManager taskQueueManager = TaskQueueManager.taskQueue();
     @Override
     public Future<?> apply(Task task) {
         return pool.withTransaction(sqlConnection -> {
@@ -21,7 +21,7 @@ public class ExampleTaskProcessor implements Function<Task, Future<?>> {
             log.info("Processing task:{}", task);
             log.info("Process completed task:{}", task);
             // handle the task e.g. close the task
-            return taskQueue.success(sqlConnection, task.getId());
+            return taskQueueManager.success(sqlConnection, task.getId());
         });
     }
 }
