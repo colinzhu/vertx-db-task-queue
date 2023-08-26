@@ -1,0 +1,28 @@
+drop table payment;
+create table PAYMENT (
+    ID bigint auto_increment,
+    STATUS varchar(30),
+    CREATE_TIME bigint,
+    INSTANCE varchar(30),
+    PRIMARY KEY (ID)
+);
+
+drop table TASKS;
+create table TASKS (
+    ID bigint auto_increment,
+    QUEUE_NAME varchar2(50) NOT NULL,
+    STATUS varchar2(30),
+    PAYLOAD CLOB,
+    REFERENCE_NUMBER varchar(100),
+    CREATE_TIME TIMESTAMP with TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    NEXT_PROCESS_TIME   TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    LAST_UPDATE_TIME   TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+create index IDX_TASKS_NAME_TIME on TASKS (QUEUE_NAME, NEXT_PROCESS_TIME, ID desc);
+create index IDX_TASKS_REF_NAME on TASKS (REFERENCE_NUMBER, QUEUE_NAME);
+
+
+
+
+
