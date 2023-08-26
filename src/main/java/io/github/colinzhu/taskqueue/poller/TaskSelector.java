@@ -1,7 +1,7 @@
-package io.github.colinzhu.dbqueue.api.poller;
+package io.github.colinzhu.taskqueue.poller;
 
-import io.github.colinzhu.dbqueue.api.PollConfig;
-import io.github.colinzhu.dbqueue.api.Task;
+import io.github.colinzhu.taskqueue.PollConfig;
+import io.github.colinzhu.taskqueue.Task;
 import io.vertx.core.Future;
 import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.SqlConnection;
@@ -48,7 +48,7 @@ class TaskSelector implements Supplier<Future<List<Task>>> {
 //                                row.getOffsetDateTime("NEXT_PROCESS_TIME").toZonedDateTime(),
 //                                row.getOffsetDateTime("LAST_UPDATE_TIME").toZonedDateTime()
                     )));
-                    log.info("[{}] selectTasks - select count (for update):{}, time:{}ms", config.getQueueName(), records.size(), System.currentTimeMillis() - start);
+                    log.debug("[{}] selectTasks - select count (for update):{}, time:{}ms", config.getQueueName(), records.size(), System.currentTimeMillis() - start);
                     return records;
                 });
     }
@@ -69,7 +69,7 @@ class TaskSelector implements Supplier<Future<List<Task>>> {
         }
         return future
                 .onFailure(err -> log.error("[{}] updateTasks - failed, time:{}ms", config.getQueueName(), System.currentTimeMillis() - start, err))
-                .onSuccess(tasks -> log.info("[{}] updateTasks - updated count:{}, time:{}ms", config.getQueueName(), tasks.size(), System.currentTimeMillis() - start));
+                .onSuccess(tasks -> log.debug("[{}] updateTasks - updated count:{}, time:{}ms", config.getQueueName(), tasks.size(), System.currentTimeMillis() - start));
     }
 
     private <T> Map<String, T> getInKeyValueMap(Set<T> values, String key) {

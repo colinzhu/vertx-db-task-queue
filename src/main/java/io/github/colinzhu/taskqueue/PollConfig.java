@@ -1,10 +1,9 @@
-package io.github.colinzhu.dbqueue.api;
+package io.github.colinzhu.taskqueue;
 
 import io.vertx.core.Future;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
-import lombok.experimental.Accessors;
 
 import java.time.Duration;
 import java.util.function.Function;

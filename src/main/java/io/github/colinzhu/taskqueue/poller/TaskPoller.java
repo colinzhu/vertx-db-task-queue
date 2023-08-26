@@ -1,7 +1,7 @@
-package io.github.colinzhu.dbqueue.api.poller;
+package io.github.colinzhu.taskqueue.poller;
 
-import io.github.colinzhu.dbqueue.api.PollConfig;
-import io.github.colinzhu.dbqueue.api.Task;
+import io.github.colinzhu.taskqueue.PollConfig;
+import io.github.colinzhu.taskqueue.Task;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.jdbcclient.JDBCPool;
@@ -51,7 +51,7 @@ public class TaskPoller {
                     rerunWithDelayIfNecessary(config.getProcessErrRetryInterval());
                 });
             } else {
-                log.info("[{}] size:0. Time:{}ms. Fetch again in {}", pollId, System.currentTimeMillis() - start, config.getNoTaskPollInterval());
+                log.debug("[{}] size:0. Time:{}ms. Fetch again in {}", pollId, System.currentTimeMillis() - start, config.getNoTaskPollInterval());
                 rerunWithDelayIfNecessary(config.getNoTaskPollInterval());
             }
         }).onFailure(e -> {
@@ -64,7 +64,7 @@ public class TaskPoller {
         if (config.isPollNextBatch()) {
             vertx.setTimer(delay.toMillis(), id -> fetchBatchAndProcess());
         } else {
-            log.info("[{}] isPollNextBatch=false, no more polling");
+            log.info("[{}] isPollNextBatch=false, no more polling", config.getQueueName());
         }
     }
 

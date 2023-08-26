@@ -1,7 +1,7 @@
-package io.github.colinzhu.dbqueue.example;
+package io.github.colinzhu.taskqueue.example;
 
-import io.github.colinzhu.dbqueue.api.Task;
-import io.github.colinzhu.dbqueue.api.manager.TaskQueueManager;
+import io.github.colinzhu.taskqueue.Task;
+import io.github.colinzhu.taskqueue.manager.TaskQueueManager;
 import io.vertx.core.Future;
 import io.vertx.jdbcclient.JDBCPool;
 import lombok.RequiredArgsConstructor;
@@ -11,15 +11,14 @@ import java.util.function.Function;
 
 @Slf4j
 @RequiredArgsConstructor
-public class ExampleTaskProcessor implements Function<Task, Future<?>> {
+public class PaymentCheckTaskProcessor implements Function<Task, Future<?>> {
     private final JDBCPool pool;
-    private TaskQueueManager taskQueueManager = TaskQueueManager.taskQueue();
+    private final TaskQueueManager taskQueueManager = TaskQueueManager.taskQueue();
     @Override
     public Future<?> apply(Task task) {
         return pool.withTransaction(sqlConnection -> {
             // do something with DB, e.g. update business entity table
-            log.info("Processing task:{}", task);
-            log.info("Process completed task:{}", task);
+            log.info("[taskId:{}] Process completed.", task.getId());
             // handle the task e.g. close the task
             return taskQueueManager.success(sqlConnection, task.getId());
         });

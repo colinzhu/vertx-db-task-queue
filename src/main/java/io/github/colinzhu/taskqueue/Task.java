@@ -1,4 +1,4 @@
-package io.github.colinzhu.dbqueue.api;
+package io.github.colinzhu.taskqueue;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
