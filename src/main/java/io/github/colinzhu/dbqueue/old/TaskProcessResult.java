@@ -1,4 +1,4 @@
-package io.github.colinzhu.dbqueue.api;
+package io.github.colinzhu.dbqueue.old;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
