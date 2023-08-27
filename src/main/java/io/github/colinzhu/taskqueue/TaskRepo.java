@@ -14,14 +14,14 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
-class TaskDao {
-    private static final TaskDao instance = new TaskDao();
+class TaskRepo {
+    private static final TaskRepo instance = new TaskRepo();
 
-    public static TaskDao getInstance() {
+    public static TaskRepo getInstance() {
         return instance;
     }
 
-    private TaskDao() {
+    private TaskRepo() {
     }
     private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, PAYLOAD, REFERENCE_NUMBER, NEXT_PROCESS_TIME) VALUES (#{queueName}, 'NEW', #{payload}, #{refNumber}, #{nextProcessTime})";
     private static final String SQL_DELETE = "DELETE TASKS WHERE ID = #{id}";

@@ -15,24 +15,24 @@ import java.time.Duration;
  * Client put task into -> Message Broker dispatch -> Client dequeue task
  */
 @Slf4j
-class TaskQueueManagerDbImpl implements TaskQueueManager {
-    private static final TaskQueueManager instance = new TaskQueueManagerDbImpl();
+class TaskQueueServiceDbImpl implements TaskQueueService {
+    private static final TaskQueueService instance = new TaskQueueServiceDbImpl();
 
-    public static TaskQueueManager getInstance() {
+    public static TaskQueueService getInstance() {
         return instance;
     }
 
-    private final TaskDao taskDao = TaskDao.getInstance();
-    private TaskQueueManagerDbImpl() {
+    private final TaskRepo taskRepo = TaskRepo.getInstance();
+    private TaskQueueServiceDbImpl() {
     }
 
     public Future<?> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
-        return taskDao.insert(sqlConnection, queueName, refNumber, payload, processDelay);
+        return taskRepo.insert(sqlConnection, queueName, refNumber, payload, processDelay);
     }
 
     @Override
     public Future<?> success(SqlConnection sqlConnection, long taskId) {
-        return taskDao.delete(sqlConnection, taskId);
+        return taskRepo.delete(sqlConnection, taskId);
     }
 
     @Override

@@ -1,7 +1,7 @@
 package io.github.colinzhu.taskqueue.example;
 
 import io.github.colinzhu.taskqueue.Task;
-import io.github.colinzhu.taskqueue.TaskQueueManager;
+import io.github.colinzhu.taskqueue.TaskQueueService;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.Promise;
@@ -19,7 +19,7 @@ import java.util.random.RandomGenerator;
 public class PaymentCheckTaskProcessor implements Function<Task, Future<?>>, Handler<Message<Task>> {
     private final Vertx vertx;
     private final JDBCPool pool;
-    private final TaskQueueManager taskQueueManager = TaskQueueManager.taskQueue();
+    private final TaskQueueService taskQueueService = TaskQueueService.taskQueue();
     @Override
     public Future<?> apply(Task task) {
         return pool.withTransaction(sqlConnection -> {
@@ -29,7 +29,7 @@ public class PaymentCheckTaskProcessor implements Function<Task, Future<?>>, Han
                 log.info("[taskId:{}] Process completed. Payload:{}", task.getId(), task.getPayload());
                 promise.complete();
             });
-            return promise.future().compose(res -> taskQueueManager.success(sqlConnection, task.getId()));
+            return promise.future().compose(res -> taskQueueService.success(sqlConnection, task.getId()));
         });
     }
 

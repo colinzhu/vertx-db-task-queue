@@ -6,12 +6,12 @@ import io.vertx.sqlclient.SqlConnection;
 
 import java.time.Duration;
 
-public interface TaskQueueManager {
-    static TaskQueueManager taskQueue() {
-        return TaskQueueManagerDbImpl.getInstance();
+public interface TaskQueueService {
+    static TaskQueueService taskQueue() {
+        return TaskQueueServiceDbImpl.getInstance();
     }
-    static TaskQueueManager taskQueue(Vertx vertx) {
-        return TaskQueueManagerDbEventBusImpl.getInstance(vertx);
+    static TaskQueueService taskQueue(Vertx vertx) {
+        return TaskQueueServiceDbEventBusImpl.getInstance(vertx);
     }
     Future<?> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay);
     Future<?> success(SqlConnection sqlConnection, long taskId);

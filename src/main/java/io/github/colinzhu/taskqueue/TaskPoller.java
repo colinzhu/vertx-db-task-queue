@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
 public class TaskPoller {
     private final Vertx vertx;
     private final PollConfig config;
-    private final TaskDao taskDao;
+    private final TaskRepo taskRepo;
     private final JDBCPool pool;
     private boolean isToStop = false;
 
@@ -21,7 +21,7 @@ public class TaskPoller {
         this.vertx = vertx;
         this.config = config;
         this.pool = pool;
-        this.taskDao = TaskDao.getInstance();
+        this.taskRepo = TaskRepo.getInstance();
     }
 
     public void start() {
@@ -42,7 +42,7 @@ public class TaskPoller {
         }
         long start = System.currentTimeMillis();
         String pollId = "PollId:" + config.getQueueName() + "-" + this.hashCode() + "-" + start;
-        pool.withTransaction(sqlConnection -> taskDao.checkout(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay()))
+        pool.withTransaction(sqlConnection -> taskRepo.checkout(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay()))
         .onSuccess(batch -> {
             if (batch.size() > 0) {
                 log.debug("[{}] size:{}, fetched. Time:{}ms", pollId, batch.size(), System.currentTimeMillis() - start);

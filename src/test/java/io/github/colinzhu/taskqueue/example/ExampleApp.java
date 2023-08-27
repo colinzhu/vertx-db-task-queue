@@ -23,7 +23,7 @@ public class ExampleApp {
         setLogLevel(PaymentCheckTaskProcessor.class.getName(), Level.INFO);
 
         Vertx vertx = Vertx.vertx();
-        H2Database.start();
+        H2Database.main();
         JDBCPool pool = H2Database.getJdbcPool(vertx);
         H2Database.createTables(pool)
                 .onSuccess(tablesCreated -> {

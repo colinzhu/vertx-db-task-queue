@@ -1,6 +1,6 @@
 package io.github.colinzhu.taskqueue.example;
 
-import io.github.colinzhu.taskqueue.TaskQueueManager;
+import io.github.colinzhu.taskqueue.TaskQueueService;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpServer;
@@ -60,7 +60,7 @@ public class PaymentCreateVerticle extends AbstractVerticle {
     private Future<?> insertPaymentAndTask(int number, Payment p, SqlConnection sqlConnection) {
         long start = System.currentTimeMillis();
         return insertPayment(sqlConnection, p)
-                .compose(payment -> TaskQueueManager.taskQueue().enqueue(sqlConnection, "QueuePaymentToBeChecked", UUID.randomUUID().toString(), payment.toString(), Duration.ZERO))
+                .compose(payment -> TaskQueueService.taskQueue().enqueue(sqlConnection, "QueuePaymentToBeChecked", UUID.randomUUID().toString(), payment.toString(), Duration.ZERO))
                 .onSuccess(event -> log.debug("#{} payment and task created, time: {}ms", number, System.currentTimeMillis() - start))
                 .onFailure(e -> log.error("error creating payment / task", e));
     }

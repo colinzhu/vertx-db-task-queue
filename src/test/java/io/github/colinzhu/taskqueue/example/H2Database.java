@@ -6,18 +6,20 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.RowSet;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.h2.tools.Server;
 
 @Slf4j
 public class H2Database {
-    @SneakyThrows
-    public static void start() {
-        Server.createTcpServer("-tcpPort", "9092", "-tcpAllowOthers", "-ifNotExists", "-baseDir", "./").start();
-        log.info("H2 database TCP server created at default port (9092). jdbc:h2:tcp://localhost/example-db");
-        Server.createWebServer("-webPort", "9091").start();
-        log.info("H2 database WEB server created at 9091 port. http://localhost:9091/");
+    public static void main(String... args) {
+        try {
+            Server.createTcpServer("-tcpPort", "9092", "-tcpAllowOthers", "-ifNotExists", "-baseDir", "./").start();
+            log.info("H2 database TCP server created at default port (9092). jdbc:h2:tcp://localhost/example-db");
+            Server.createWebServer("-webPort", "9091").start();
+            log.info("H2 database WEB server created at 9091 port. http://localhost:9091/");
+        } catch (Exception e) {
+            log.warn("Seems servers already started.", e);
+        }
     }
 
     public static Future<?> createTables(JDBCPool pool) {
