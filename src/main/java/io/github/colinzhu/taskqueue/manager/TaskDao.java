@@ -25,8 +25,8 @@ class TaskDao {
     private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, PAYLOAD, REFERENCE_NUMBER, NEXT_PROCESS_TIME) VALUES (#{queueName}, 'NEW', #{payload}, #{refNumber}, #{nextProcessTime})";
     private static final String SQL_DELETE = "DELETE TASKS WHERE ID = #{id}";
 
-    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= CURRENT_TIMESTAMP() ORDER BY NEXT_PROCESS_TIME, ID FETCH FIRST #{batchSize} ROWS ONLY FOR UPDATE";
-    private static final String SQL_SELECT_FOR_UPDATE_UPDATE = "UPDATE TASKS SET NEXT_PROCESS_TIME = #{newNextProcessTime} WHERE ID IN (#{idList})";
+    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= CURRENT_TIMESTAMP() ORDER BY NEXT_PROCESS_TIME, ID FETCH FIRST #{batchSize} ROWS ONLY FOR UPDATE SKIP LOCKED";
+    private static final String SQL_SELECT_FOR_UPDATE_UPDATE = "UPDATE TASKS SET NEXT_PROCESS_TIME = #{newNextProcessTime} WHERE ID IN ({idList})";
 
     Future<Task> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
         return SqlTemplate.forUpdate(sqlConnection, SQL_INSERT)
@@ -44,7 +44,7 @@ class TaskDao {
         long start = System.currentTimeMillis();
         return SqlTemplate.forUpdate(sqlConnection, SQL_DELETE)
                 .execute(Map.of("id", taskId))
-                .onSuccess(sqlResult -> log.info("[taskId:{}] task deleted. Time:{}ms", taskId, System.currentTimeMillis() - start))
+                .onSuccess(sqlResult -> log.debug("[taskId:{}] task deleted. Time:{}ms", taskId, System.currentTimeMillis() - start))
                 .onFailure(err -> log.error("[taskId:{}] fail to delete task. Time:{}ms", taskId, System.currentTimeMillis() - start, err));
     }
 
@@ -76,12 +76,11 @@ class TaskDao {
         if (records.isEmpty()) {
             future = Future.succeededFuture(List.of());
         } else {
-            Set<Long> idValues = records.stream().map(Task::getId).collect(Collectors.toSet());
-            String idKeyList = getInKeyValueMap(idValues, "idIn").keySet().stream().sorted().map(k -> "#{" + k + "}").collect(Collectors.joining(","));
-            String sql = SQL_SELECT_FOR_UPDATE_UPDATE.replace("#{idList}", idKeyList);
+            String idValues = records.stream().map(record -> String.valueOf(record.getId())).collect(Collectors.joining(","));
+            String sql = SQL_SELECT_FOR_UPDATE_UPDATE.replace("{idList}", idValues);
             ZonedDateTime newNextProcessTime = ZonedDateTime.now().plusSeconds(nextProcessDelay.getSeconds());
             future = SqlTemplate.forUpdate(sqlConnection, sql)
-                    .execute(Map.of("idList", idValues, "newNextProcessTime", newNextProcessTime))
+                    .execute(Map.of("newNextProcessTime", newNextProcessTime))
                     .map(records);
         }
         return future
@@ -89,7 +88,7 @@ class TaskDao {
                 .onSuccess(tasks -> log.debug("[{}] updateTasks - updated count:{}, time:{}ms", queueName, tasks.size(), System.currentTimeMillis() - start));
     }
 
-    private <T> Map<String, T> getInKeyValueMap(Set<T> values, String key) {
+    private <T> Map<String, ?> getInKeyValueMap(Set<T> values, String key) {
         SortedSet<T> valueSet = new TreeSet<>(values);
         Map<String, T> templateKeyValueMap = new HashMap<>();
         int i = 0;

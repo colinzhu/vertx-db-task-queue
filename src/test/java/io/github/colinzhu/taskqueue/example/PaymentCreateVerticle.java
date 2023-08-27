@@ -12,6 +12,7 @@ import io.vertx.sqlclient.Tuple;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.text.NumberFormat;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,41 +35,42 @@ public class PaymentCreateVerticle extends AbstractVerticle {
         Router router = Router.router(vertx);
         router.route("/create/:count").handler(this::handleRouting);
         server.requestHandler(router).listen(port)
-                .onSuccess(ar -> log.info("create server started at {}", port));
+                .onSuccess(ar -> log.info("create server started. http://localhost:{}/create/1", port));
     }
 
     private void handleRouting(RoutingContext routingContext) {
         long start = System.currentTimeMillis();
-        String count = routingContext.pathParam("count");
-        if (null == count) {
-            routingContext.response().end("count cannot be null");
+        int count;
+        try {
+            count = Integer.parseInt(routingContext.pathParam("count"));
+        } catch (RuntimeException e) {
+            routingContext.response().end("count must be an integer");
             return;
         }
         List<Future<?>> futures = new ArrayList<>();
-        for (int i = 0; i < Integer.parseInt(count); i++) {
+        for (int i = 0; i < count; i++) {
             Payment p = new Payment(System.nanoTime(), "CREATED", "B", System.currentTimeMillis());
             final int i2 = i;
             futures.add(pool.withTransaction(sqlConnection -> insertPaymentAndTask(i2, p, sqlConnection)));
         }
         Future.join(futures)
-                .onSuccess(res -> routingContext.response().end("all items created, time: " + (System.currentTimeMillis() - start) + "ms"))
+                .onSuccess(res -> routingContext.response().end(count + " items created, time: " + (System.currentTimeMillis() - start) + "ms"))
                 .onFailure(res -> routingContext.response().end("fail to create items"));
     }
 
     private Future<?> insertPaymentAndTask(int number, Payment p, SqlConnection sqlConnection) {
         long start = System.currentTimeMillis();
         return insertPayment(sqlConnection, p)
-                .compose(payment -> TaskQueueManager.taskQueue(vertx).enqueue(sqlConnection, "QueuePaymentToBeChecked", UUID.randomUUID().toString(), payment.toString(), Duration.ofSeconds(5)))
-                .onSuccess(event -> log.info("#{} payment and task created, time: {}ms", number, System.currentTimeMillis() - start))
-                .onFailure(e -> log.info("error creating payment / task", e));
+                .compose(payment -> TaskQueueManager.taskQueue().enqueue(sqlConnection, "QueuePaymentToBeChecked", UUID.randomUUID().toString(), payment.toString(), Duration.ZERO))
+                .onSuccess(event -> log.debug("#{} payment and task created, time: {}ms", number, System.currentTimeMillis() - start))
+                .onFailure(e -> log.error("error creating payment / task", e));
     }
-
 
     private Future<Payment> insertPayment(SqlConnection sqlConnection, Payment payment) {
         long start = System.currentTimeMillis();
         return sqlConnection.preparedQuery("insert into PAYMENT (STATUS, INSTANCE, CREATE_TIME) values (?, ?, ?)")
                 .execute(Tuple.of(payment.getStatus(), payment.getInstance(), payment.getCreateTime()))
-                .onSuccess(rows -> log.info("payment inserted, ID:{} time:{}ms", rows.property(JDBCPool.GENERATED_KEYS).getLong(0), System.currentTimeMillis() - start))
+                .onSuccess(rows -> log.debug("payment inserted, ID:{} time:{}ms", rows.property(JDBCPool.GENERATED_KEYS).getLong(0), System.currentTimeMillis() - start))
                 .map(result -> payment)
                 .onFailure(e -> log.error("error inserting", e));
     }

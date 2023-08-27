@@ -4,25 +4,32 @@ import io.github.colinzhu.taskqueue.Task;
 import io.github.colinzhu.taskqueue.manager.TaskQueueManager;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.Promise;
+import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.Message;
 import io.vertx.jdbcclient.JDBCPool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.function.Function;
+import java.util.random.RandomGenerator;
 
 @Slf4j
 @RequiredArgsConstructor
 public class PaymentCheckTaskProcessor implements Function<Task, Future<?>>, Handler<Message<Task>> {
+    private final Vertx vertx;
     private final JDBCPool pool;
     private final TaskQueueManager taskQueueManager = TaskQueueManager.taskQueue();
     @Override
     public Future<?> apply(Task task) {
         return pool.withTransaction(sqlConnection -> {
             // do something with DB, e.g. update business entity table
-            log.info("[taskId:{}] Process completed. Payload:{}", task.getId(), task.getPayload());
-            // handle the task e.g. close the task
-            return taskQueueManager.success(sqlConnection, task.getId());
+            Promise<Object> promise = Promise.promise();
+            vertx.setTimer(RandomGenerator.getDefault().nextInt(1,1000), id -> {
+                log.info("[taskId:{}] Process completed. Payload:{}", task.getId(), task.getPayload());
+                promise.complete();
+            });
+            return promise.future().compose(res -> taskQueueManager.success(sqlConnection, task.getId()));
         });
     }
 
