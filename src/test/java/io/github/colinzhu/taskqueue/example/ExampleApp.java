@@ -1,5 +1,6 @@
 package io.github.colinzhu.taskqueue.example;
 
+import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Verticle;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
@@ -13,13 +14,14 @@ public class ExampleApp {
         JDBCPool pool = getJdbcPool(vertx);
 
         Verticle createVerticle = new PaymentCreateVerticle(pool);
-        Verticle consumeVerticle = new PaymentCheckVerticle(pool);
+        //Verticle consumeVerticle = new PaymentCheckVerticle();
 
-        vertx.deployVerticle(consumeVerticle)
-                .compose(any -> vertx.deployVerticle(createVerticle));
+        vertx.deployVerticle(PaymentCheckVerticle.class, new DeploymentOptions().setInstances(1))
+                .compose(any -> vertx.deployVerticle(createVerticle))
+                .onFailure(err -> log.error("error", err));
     }
 
-    private static JDBCPool getJdbcPool(Vertx vertx) {
+    public static JDBCPool getJdbcPool(Vertx vertx) {
         final JsonObject config = new JsonObject()
                 //.put("url", "jdbc:h2:~/dev/git/db-queue-vertx/example-db/example-db;DEFAULT_NULL_ORDERING=HIGH")
                 .put("url", "jdbc:h2:tcp://127.0.1.1:9092/example-db")

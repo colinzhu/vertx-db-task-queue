@@ -2,13 +2,14 @@ package io.github.colinzhu.taskqueue.manager;
 
 import io.github.colinzhu.taskqueue.Task;
 import io.vertx.core.Future;
+import io.vertx.core.Vertx;
 import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.SqlConnection;
+import io.vertx.sqlclient.SqlResult;
 import io.vertx.sqlclient.templates.SqlTemplate;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.time.ZonedDateTime;
 import java.util.Map;
 
 /**
@@ -20,24 +21,36 @@ import java.util.Map;
  * Client put task into -> Message Broker dispatch -> Client dequeue task
  */
 @Slf4j
-class TaskQueueManagerDbImpl implements TaskQueueManager {
-    private static final TaskQueueManager instance = new TaskQueueManagerDbImpl();
+class TaskQueueManagerDbEventBusImpl implements TaskQueueManager {
+    private final Vertx vertx;
+    private final TaskQueueManager dbImpl;
+    private static TaskQueueManager instance;
 
-    public static TaskQueueManager getInstance() {
+    public static TaskQueueManager getInstance(Vertx vertx) {
+        if (null == instance) {
+            instance = new TaskQueueManagerDbEventBusImpl(vertx);
+        }
         return instance;
     }
 
-    private TaskDao taskDao = TaskDao.getInstance();
-    private TaskQueueManagerDbImpl() {
+    private TaskQueueManagerDbEventBusImpl(Vertx vertx) {
+        this.vertx = vertx;
+        this.dbImpl = TaskQueueManagerDbImpl.getInstance();
     }
 
     public Future<?> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
-        return taskDao.insert(sqlConnection, queueName, refNumber, payload, processDelay);
+        return dbImpl.enqueue(sqlConnection, queueName, refNumber, payload, processDelay)
+                .map(task -> {
+                    vertx.eventBus().send(queueName, task);
+                    log.info("[{}]Task sent to event bus, refNumber:{}, taskId:{}, nextProcessDelay:{}",
+                            queueName, refNumber, ((Task)task).getId(), processDelay);
+                    return task;
+                });
     }
 
     @Override
     public Future<?> success(SqlConnection sqlConnection, long taskId) {
-        return taskDao.delete(sqlConnection, taskId);
+        return dbImpl.success(sqlConnection, taskId);
     }
 
     @Override

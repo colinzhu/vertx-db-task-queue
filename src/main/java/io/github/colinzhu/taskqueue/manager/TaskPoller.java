@@ -1,4 +1,4 @@
-package io.github.colinzhu.taskqueue.poller;
+package io.github.colinzhu.taskqueue.manager;
 
 import io.github.colinzhu.taskqueue.PollConfig;
 import io.github.colinzhu.taskqueue.Task;
@@ -16,12 +16,14 @@ import java.util.stream.Collectors;
 public class TaskPoller {
     private final Vertx vertx;
     private final PollConfig config;
-    private final Supplier<Future<List<Task>>> taskSelector;
+    private final TaskDao taskDao;
+    private final JDBCPool pool;
 
     public TaskPoller(Vertx vertx, JDBCPool pool, PollConfig config) {
         this.vertx = vertx;
         this.config = config;
-        this.taskSelector = new TaskSelector(pool, config);
+        this.pool = pool;
+        this.taskDao = TaskDao.getInstance();
     }
 
     public void start() {
@@ -33,8 +35,9 @@ public class TaskPoller {
      */
     public void fetchBatchAndProcess() {
         long start = System.currentTimeMillis();
-        String pollId = "PollId:" + config.getQueueName() + "-" + start;
-        taskSelector.get().onSuccess(batch -> {
+        String pollId = "PollId:" + config.getQueueName() + "-" + this.hashCode() + "-" + start;
+        pool.withTransaction(sqlConnection -> taskDao.checkout(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay()))
+        .onSuccess(batch -> {
             if (batch.size() > 0) {
                 log.info("[{}] size:{}, fetched. Time:{}ms", pollId, batch.size(), System.currentTimeMillis() - start);
                 long procStart = System.currentTimeMillis();
