@@ -1,6 +1,5 @@
-package io.github.colinzhu.taskqueue.manager;
+package io.github.colinzhu.taskqueue;
 
-import io.github.colinzhu.taskqueue.Task;
 import io.vertx.core.Future;
 import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.SqlConnection;
@@ -9,7 +8,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.time.ZonedDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -87,16 +88,4 @@ class TaskDao {
                 .onFailure(err -> log.error("[{}] updateTasks - failed, time:{}ms", queueName, System.currentTimeMillis() - start, err))
                 .onSuccess(tasks -> log.debug("[{}] updateTasks - updated count:{}, time:{}ms", queueName, tasks.size(), System.currentTimeMillis() - start));
     }
-
-    private <T> Map<String, ?> getInKeyValueMap(Set<T> values, String key) {
-        SortedSet<T> valueSet = new TreeSet<>(values);
-        Map<String, T> templateKeyValueMap = new HashMap<>();
-        int i = 0;
-        for (T value : valueSet) {
-            templateKeyValueMap.put(key + i, value);
-            i++;
-        }
-        return templateKeyValueMap;
-    }
-
 }

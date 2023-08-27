@@ -1,9 +1,8 @@
 package io.github.colinzhu.taskqueue.example;
 
 import io.github.colinzhu.taskqueue.PollConfig;
-import io.github.colinzhu.taskqueue.manager.TaskPoller;
+import io.github.colinzhu.taskqueue.TaskPoller;
 import io.vertx.core.AbstractVerticle;
-import io.vertx.core.Promise;
 import io.vertx.jdbcclient.JDBCPool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +16,7 @@ public class PaymentCheckVerticle extends AbstractVerticle {
     private TaskPoller poller;
     @Override
     public void start() {
-        pool = ExampleApp.getJdbcPool(vertx); // TODO check if pool is shared
+        pool = H2Database.getJdbcPool(vertx); // TODO check if pool is shared
         log.info("{}-{} {} started", PaymentCheckVerticle.class.getName(), this.hashCode(), pool.hashCode());
         PaymentCheckTaskProcessor taskProcessor = new PaymentCheckTaskProcessor(vertx, pool);
         PollConfig pollConfig = new PollConfig("QueuePaymentToBeChecked", 5, Duration.ofMinutes(10), taskProcessor);

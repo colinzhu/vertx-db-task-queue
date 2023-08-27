@@ -1,6 +1,5 @@
-package io.github.colinzhu.taskqueue.manager;
+package io.github.colinzhu.taskqueue;
 
-import io.github.colinzhu.taskqueue.PollConfig;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.jdbcclient.JDBCPool;

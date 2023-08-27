@@ -1,6 +1,6 @@
 package io.github.colinzhu.taskqueue.example;
 
-import io.github.colinzhu.taskqueue.manager.TaskQueueManager;
+import io.github.colinzhu.taskqueue.TaskQueueManager;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpServer;
@@ -12,7 +12,6 @@ import io.vertx.sqlclient.Tuple;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.text.NumberFormat;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;

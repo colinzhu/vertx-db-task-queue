@@ -1,7 +1,7 @@
 package io.github.colinzhu.taskqueue.example;
 
 import io.github.colinzhu.taskqueue.Task;
-import io.github.colinzhu.taskqueue.manager.TaskQueueManager;
+import io.github.colinzhu.taskqueue.TaskQueueManager;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.Promise;

@@ -1,4 +1,4 @@
-package io.github.colinzhu.taskqueue.manager;
+package io.github.colinzhu.taskqueue;
 
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;

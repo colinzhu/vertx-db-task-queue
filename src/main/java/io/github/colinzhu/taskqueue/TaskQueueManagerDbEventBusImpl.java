@@ -1,16 +1,11 @@
-package io.github.colinzhu.taskqueue.manager;
+package io.github.colinzhu.taskqueue;
 
-import io.github.colinzhu.taskqueue.Task;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
-import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.SqlConnection;
-import io.vertx.sqlclient.SqlResult;
-import io.vertx.sqlclient.templates.SqlTemplate;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.util.Map;
 
 /**
  * QueueClient
