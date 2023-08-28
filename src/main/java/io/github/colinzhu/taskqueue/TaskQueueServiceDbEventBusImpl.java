@@ -33,12 +33,12 @@ class TaskQueueServiceDbEventBusImpl implements TaskQueueService {
         this.dbImpl = TaskQueueServiceDbImpl.getInstance();
     }
 
-    public Future<?> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
+    public <T> Future<?> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
         return dbImpl.enqueue(sqlConnection, queueName, refNumber, payload, processDelay)
                 .map(task -> {
                     vertx.eventBus().send(queueName, task);
                     log.info("[{}]Task sent to event bus, refNumber:{}, taskId:{}, nextProcessDelay:{}",
-                            queueName, refNumber, ((Task)task).getId(), processDelay);
+                            queueName, refNumber, ((Task<?>)task).getId(), processDelay);
                     return task;
                 });
     }
@@ -50,11 +50,11 @@ class TaskQueueServiceDbEventBusImpl implements TaskQueueService {
 
     @Override
     public Future<?> failure(SqlConnection sqlConnection, long taskId) {
-        return Future.succeededFuture();
+        return dbImpl.failure(sqlConnection, taskId);
     }
 
     @Override
     public Future<?> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay) {
-        return Future.succeededFuture();
+        return dbImpl.reenqueue(sqlConnection, taskId, delay);
     }
 }

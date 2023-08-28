@@ -13,7 +13,7 @@ public interface TaskQueueService {
     static TaskQueueService taskQueue(Vertx vertx) {
         return TaskQueueServiceDbEventBusImpl.getInstance(vertx);
     }
-    Future<?> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay);
+    <T> Future<?> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay);
     Future<?> success(SqlConnection sqlConnection, long taskId);
     Future<?> failure(SqlConnection sqlConnection, long taskId);
     Future<?> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay);

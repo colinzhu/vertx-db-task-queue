@@ -44,8 +44,8 @@ public class H2Database {
 
     private static Future<RowSet<Row>> createTaskTable(JDBCPool pool) {
         String sql = """
-                drop table TASKS IF EXISTS;
-                create table TASKS (
+                --drop table TASKS IF EXISTS;
+                create table IF NOT EXISTS TASKS (
                     ID bigint auto_increment,
                     QUEUE_NAME varchar2(50) NOT NULL,
                     STATUS varchar2(30),
@@ -64,8 +64,8 @@ public class H2Database {
 
     private static Future<RowSet<Row>> createPaymentTable(JDBCPool pool) {
         String sql = """
-                drop table payment IF EXISTS;
-                create table PAYMENT (
+                --drop table payment IF EXISTS;
+                create table IF NOT EXISTS PAYMENT (
                     ID bigint auto_increment,
                     STATUS varchar(30),
                     CREATE_TIME bigint,

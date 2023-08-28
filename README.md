@@ -8,4 +8,4 @@ A database based task queue with vert.x
 - Integrate with event bus
 - Payload casting
 - Task processing error handling
-
+- reenqueue

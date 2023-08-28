@@ -7,7 +7,7 @@ import java.io.Serializable;
 
 @Data
 @AllArgsConstructor
-public class Task implements Serializable {
+public class Task<T> implements Serializable {
     private long id;
-    private String payload;
+    private T payload;
 }

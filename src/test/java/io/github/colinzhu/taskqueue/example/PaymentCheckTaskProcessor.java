@@ -22,6 +22,7 @@ public class PaymentCheckTaskProcessor implements Function<Task, Future<?>>, Han
     private final TaskQueueService taskQueueService = TaskQueueService.taskQueue();
     @Override
     public Future<?> apply(Task task) {
+        // do some blocking task OUTSIDE of transaction, e.g. call HTTP API
         return pool.withTransaction(sqlConnection -> {
             // do something with DB, e.g. update business entity table
             Promise<Object> promise = Promise.promise();
@@ -29,7 +30,9 @@ public class PaymentCheckTaskProcessor implements Function<Task, Future<?>>, Han
                 log.info("[taskId:{}] Process completed. Payload:{}", task.getId(), task.getPayload());
                 promise.complete();
             });
-            return promise.future().compose(res -> taskQueueService.success(sqlConnection, task.getId()));
+            return promise.future()
+                    .compose(res -> taskQueueService.success(sqlConnection, task.getId()))
+                    .onFailure(err -> taskQueueService.failure(sqlConnection, task.getId()));
         });
     }
 

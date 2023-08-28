@@ -1,5 +1,8 @@
 package io.github.colinzhu.taskqueue;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.vertx.core.Future;
 import io.vertx.sqlclient.SqlConnection;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +20,7 @@ import java.time.Duration;
 @Slf4j
 class TaskQueueServiceDbImpl implements TaskQueueService {
     private static final TaskQueueService instance = new TaskQueueServiceDbImpl();
+    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     public static TaskQueueService getInstance() {
         return instance;
@@ -26,8 +30,14 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
     private TaskQueueServiceDbImpl() {
     }
 
-    public Future<?> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
-        return taskRepo.insert(sqlConnection, queueName, refNumber, payload, processDelay);
+    public <T> Future<?> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
+        String payloadStr;
+        try {
+            payloadStr = objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException e) {
+            return Future.failedFuture(e);
+        }
+        return taskRepo.insert(sqlConnection, queueName, refNumber, payloadStr, processDelay);
     }
 
     @Override
@@ -37,7 +47,7 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
 
     @Override
     public Future<?> failure(SqlConnection sqlConnection, long taskId) {
-        return Future.succeededFuture();
+        return taskRepo.updateStatusToError(sqlConnection, taskId);
     }
 
     @Override

@@ -13,7 +13,7 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class PaymentCheckVerticle extends AbstractVerticle {
     private JDBCPool pool;
-    private TaskPoller poller;
+    private TaskPoller<Payment> poller;
     @Override
     public void start() {
         pool = H2Database.getJdbcPool(vertx); // TODO check if pool is shared
@@ -22,7 +22,7 @@ public class PaymentCheckVerticle extends AbstractVerticle {
         PollConfig pollConfig = new PollConfig("QueuePaymentToBeChecked", 5, Duration.ofMinutes(10), taskProcessor);
         vertx.eventBus().consumer(pollConfig.getQueueName(), taskProcessor);
 
-        poller = new TaskPoller(vertx, pool, pollConfig); // how often to fetch tasks
+        poller = new TaskPoller<>(vertx, pool, pollConfig); // how often to fetch tasks
         poller.start();
     }
 }

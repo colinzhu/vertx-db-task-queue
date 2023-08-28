@@ -1,5 +1,9 @@
 package io.github.colinzhu.taskqueue;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.jdbcclient.JDBCPool;
@@ -10,12 +14,13 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
-public class TaskPoller {
+public class TaskPoller<T> {
     private final Vertx vertx;
     private final PollConfig config;
     private final TaskRepo taskRepo;
     private final JDBCPool pool;
     private boolean isToStop = false;
+    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     public TaskPoller(Vertx vertx, JDBCPool pool, PollConfig config) {
         this.vertx = vertx;
@@ -28,6 +33,7 @@ public class TaskPoller {
         isToStop = false;
         fetchBatchAndProcess();
     }
+
     public void stop() {
         isToStop = true;
     }
@@ -35,7 +41,7 @@ public class TaskPoller {
     /**
      * Frequently trigger the taskSelector to fetch tasks and then invoke the taskProcessor to process them
      */
-    public void fetchBatchAndProcess() {
+    private void fetchBatchAndProcess() {
         if (isToStop) {
             log.info("isToRun=false, stop polling");
             return;
@@ -43,30 +49,33 @@ public class TaskPoller {
         long start = System.currentTimeMillis();
         String pollId = "PollId:" + config.getQueueName() + "-" + this.hashCode() + "-" + start;
         pool.withTransaction(sqlConnection -> taskRepo.checkout(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay()))
-        .onSuccess(batch -> {
-            if (batch.size() > 0) {
-                log.debug("[{}] size:{}, fetched. Time:{}ms", pollId, batch.size(), System.currentTimeMillis() - start);
-                long procStart = System.currentTimeMillis();
-                List<Future<?>> futures = batch.stream().map(config.getTaskProcessor()).collect(Collectors.toList());
-                Future.join(futures).onSuccess(event -> {
-                    long end = System.currentTimeMillis();
-                    log.info("[{}] size:{}, all items succeeded. Fetch and process time:{}ms, fetch time:{}ms, process time:{}ms", pollId, futures.size(), end - start, procStart - start, end - procStart);
-                    if (config.isPollNextBatch()) {
-                        rerunWithDelayIfNecessary(config.getHasTaskPollInterval());
+                .onSuccess(batch -> {
+                    if (batch.size() > 0) {
+                        log.debug("[{}] size:{}, fetched. Time:{}ms", pollId, batch.size(), System.currentTimeMillis() - start);
+                        long procStart = System.currentTimeMillis();
+                        List<Future<?>> futures = batch.stream()
+                                .map(this::convertTask)
+                                .map(config.getTaskProcessor())
+                                .collect(Collectors.toList());
+                        Future.join(futures).onSuccess(event -> {
+                            long end = System.currentTimeMillis();
+                            log.info("[{}] size:{}, all items succeeded. Fetch and process time:{}ms, fetch time:{}ms, process time:{}ms", pollId, futures.size(), end - start, procStart - start, end - procStart);
+                            if (config.isPollNextBatch()) {
+                                rerunWithDelayIfNecessary(config.getHasTaskPollInterval());
+                            }
+                        }).onFailure(e -> {
+                            // item consumer should handle all exceptions, this is only a safety net e.g. not able to update record status in DB
+                            log.error("[{}] size:{}, all items completed, but at least one item failed. Retry in {}", pollId, batch.size(), config.getProcessErrRetryInterval(), e);
+                            rerunWithDelayIfNecessary(config.getProcessErrRetryInterval());
+                        });
+                    } else {
+                        log.debug("[{}] size:0. Time:{}ms. Fetch again in {}", pollId, System.currentTimeMillis() - start, config.getNoTaskPollInterval());
+                        rerunWithDelayIfNecessary(config.getNoTaskPollInterval());
                     }
                 }).onFailure(e -> {
-                    // item consumer should handle all exceptions, this is only a safety net e.g. not able to update record status in DB
-                    log.error("[{}] size:{}, all items completed, but at least one item failed. Retry in {}", pollId, batch.size(), config.getProcessErrRetryInterval(), e);
-                    rerunWithDelayIfNecessary(config.getProcessErrRetryInterval());
+                    log.error("[{}] Failed to fetch batch, retry in {}", pollId, config.getErrPollingRetryInterval(), e);
+                    rerunWithDelayIfNecessary(config.getErrPollingRetryInterval());
                 });
-            } else {
-                log.debug("[{}] size:0. Time:{}ms. Fetch again in {}", pollId, System.currentTimeMillis() - start, config.getNoTaskPollInterval());
-                rerunWithDelayIfNecessary(config.getNoTaskPollInterval());
-            }
-        }).onFailure(e -> {
-            log.error("[{}] Failed to fetch batch, retry in {}", pollId, config.getErrPollingRetryInterval(), e);
-            rerunWithDelayIfNecessary(config.getErrPollingRetryInterval());
-        });
     }
 
     private void rerunWithDelayIfNecessary(Duration delay) {
@@ -81,4 +90,11 @@ public class TaskPoller {
         }
     }
 
+    private Task<T> convertTask(Task<String> stringTask) {
+        try {
+            return new Task<>(stringTask.getId(), objectMapper.readValue(stringTask.getPayload(), new TypeReference<>() {}));
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to deserialize JSON string to object. JSON: " + stringTask.getPayload(), e);
+        }
+    }
 }
