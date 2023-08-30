@@ -16,12 +16,12 @@ import java.util.random.RandomGenerator;
 
 @Slf4j
 @RequiredArgsConstructor
-public class PaymentCheckTaskProcessor implements Function<Task, Future<?>>, Handler<Message<Task>> {
+public class PaymentCheckTaskProcessor implements Function<Task, Future<Integer>>, Handler<Message<Task>> {
     private final Vertx vertx;
     private final JDBCPool pool;
     private final TaskQueueService taskQueueService = TaskQueueService.taskQueue();
     @Override
-    public Future<?> apply(Task task) {
+    public Future<Integer> apply(Task task) {
         // do some blocking task OUTSIDE of transaction, e.g. call HTTP API
         return pool.withTransaction(sqlConnection -> {
             // do something with DB, e.g. update business entity table
@@ -31,8 +31,10 @@ public class PaymentCheckTaskProcessor implements Function<Task, Future<?>>, Han
                 promise.complete();
             });
             return promise.future()
-                    .compose(res -> taskQueueService.success(sqlConnection, task.getId()))
-                    .onFailure(err -> taskQueueService.failure(sqlConnection, task.getId()));
+                    .compose(res -> taskQueueService.finish(sqlConnection, task.getId()));
+                    // if finished, update the task within the same transaction
+                    // if reenqueue, update the task within the same transaction
+                    // if failure, in a separate transaction, mark the task as ERROR
         });
     }
 

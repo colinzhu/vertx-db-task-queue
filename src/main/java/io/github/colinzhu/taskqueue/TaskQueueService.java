@@ -14,7 +14,7 @@ public interface TaskQueueService {
         return TaskQueueServiceDbEventBusImpl.getInstance(vertx);
     }
     <T> Future<?> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay);
-    Future<?> success(SqlConnection sqlConnection, long taskId);
-    Future<?> failure(SqlConnection sqlConnection, long taskId);
+    Future<Integer> finish(SqlConnection sqlConnection, long taskId);
+    Future<Integer> fail(SqlConnection sqlConnection, long taskId);
     Future<?> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay);
 }

@@ -14,7 +14,7 @@ public class PollConfig {
     private final String queueName;
     private final int batchSize;
     private final Duration nextProcessDelay;
-    private final Function<Task, Future<?>> taskProcessor;
+    private final Function<Task, Future<Integer>> taskProcessor;
     @Setter
     private Duration noTaskPollInterval = Duration.ofSeconds(5);
     @Setter

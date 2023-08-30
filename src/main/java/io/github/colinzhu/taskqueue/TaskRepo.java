@@ -28,8 +28,8 @@ class TaskRepo {
     private static final String SQL_DELETE = "DELETE TASKS WHERE ID = #{id}";
     private static final String SQL_UPDATE_STATUS = "UPDATE TASKS SET STATUS = #{status} WHERE ID = #{id}";
 
-    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= CURRENT_TIMESTAMP() ORDER BY NEXT_PROCESS_TIME, ID FETCH FIRST #{batchSize} ROWS ONLY FOR UPDATE SKIP LOCKED";
-    private static final String SQL_SELECT_FOR_UPDATE_UPDATE = "UPDATE TASKS SET NEXT_PROCESS_TIME = #{newNextProcessTime} WHERE ID IN ({idList})";
+    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE STATUS IN ('NEW','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= CURRENT_TIMESTAMP() ORDER BY NEXT_PROCESS_TIME, ID FETCH FIRST #{batchSize} ROWS ONLY FOR UPDATE SKIP LOCKED";
+    private static final String SQL_SELECT_FOR_UPDATE_UPDATE = "UPDATE TASKS SET STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime} WHERE ID IN ({idList})";
 
     Future<Task<String>> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
         return SqlTemplate.forUpdate(sqlConnection, SQL_INSERT)

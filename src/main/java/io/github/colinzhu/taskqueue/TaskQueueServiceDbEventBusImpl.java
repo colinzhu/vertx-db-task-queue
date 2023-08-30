@@ -44,13 +44,13 @@ class TaskQueueServiceDbEventBusImpl implements TaskQueueService {
     }
 
     @Override
-    public Future<?> success(SqlConnection sqlConnection, long taskId) {
-        return dbImpl.success(sqlConnection, taskId);
+    public Future<Integer> finish(SqlConnection sqlConnection, long taskId) {
+        return dbImpl.finish(sqlConnection, taskId);
     }
 
     @Override
-    public Future<?> failure(SqlConnection sqlConnection, long taskId) {
-        return dbImpl.failure(sqlConnection, taskId);
+    public Future<Integer> fail(SqlConnection sqlConnection, long taskId) {
+        return dbImpl.fail(sqlConnection, taskId);
     }
 
     @Override

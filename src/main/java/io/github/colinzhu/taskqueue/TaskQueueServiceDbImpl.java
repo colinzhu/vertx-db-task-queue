@@ -30,7 +30,7 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
     private TaskQueueServiceDbImpl() {
     }
 
-    public <T> Future<?> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
+    public <T> Future<Task<String>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
         String payloadStr;
         try {
             payloadStr = objectMapper.writeValueAsString(payload);
@@ -41,12 +41,12 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
     }
 
     @Override
-    public Future<?> success(SqlConnection sqlConnection, long taskId) {
+    public Future<Integer> finish(SqlConnection sqlConnection, long taskId) {
         return taskRepo.delete(sqlConnection, taskId);
     }
 
     @Override
-    public Future<?> failure(SqlConnection sqlConnection, long taskId) {
+    public Future<Integer> fail(SqlConnection sqlConnection, long taskId) {
         return taskRepo.updateStatusToError(sqlConnection, taskId);
     }
 
