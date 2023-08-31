@@ -12,7 +12,6 @@ import io.vertx.sqlclient.Tuple;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -60,7 +59,7 @@ public class PaymentCreateVerticle extends AbstractVerticle {
     private Future<?> insertPaymentAndTask(int number, Payment p, SqlConnection sqlConnection) {
         long start = System.currentTimeMillis();
         return insertPayment(sqlConnection, p)
-                .compose(payment -> TaskQueueService.taskQueue().enqueue(sqlConnection, "QueuePaymentToBeChecked", UUID.randomUUID().toString(), payment, Duration.ZERO))
+                .compose(payment -> TaskQueueService.taskQueue().enqueue(sqlConnection, "QueuePaymentToBeChecked", UUID.randomUUID().toString(), payment))
                 .onSuccess(event -> log.debug("#{} payment and task created, time: {}ms", number, System.currentTimeMillis() - start))
                 .onFailure(e -> log.error("error creating payment / task", e));
     }
