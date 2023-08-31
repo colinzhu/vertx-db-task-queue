@@ -33,7 +33,15 @@ class TaskQueueServiceDbEventBusImpl implements TaskQueueService {
         this.dbImpl = TaskQueueServiceDbImpl.getInstance();
     }
 
+    @Override
+    public <T> Future<?> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload) {
+        throw new UnsupportedOperationException("For using event bus, please use method with `processDelay` parameter.");
+    }
+
     public <T> Future<?> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
+        if (processDelay.isZero()) {
+            throw new IllegalArgumentException("For using event bus, processDelay cannot be zero");
+        }
         return dbImpl.enqueue(sqlConnection, queueName, refNumber, payload, processDelay)
                 .map(task -> {
                     vertx.eventBus().send(queueName, task);
