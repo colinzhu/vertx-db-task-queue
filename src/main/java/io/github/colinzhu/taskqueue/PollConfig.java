@@ -10,11 +10,12 @@ import java.util.function.Function;
 
 @RequiredArgsConstructor
 @Getter
-public class PollConfig {
+public class PollConfig<T> {
     private final String queueName;
     private final int batchSize;
     private final Duration nextProcessDelay;
-    private final Function<Task, Future<Integer>> taskProcessor;
+    private final Function<Task<T>, Future<Integer>> taskProcessor;
+    private final Class<T> payloadClass;
     @Setter
     private Duration noTaskPollInterval = Duration.ofSeconds(5);
     @Setter

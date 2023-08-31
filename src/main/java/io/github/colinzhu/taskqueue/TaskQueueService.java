@@ -16,5 +16,5 @@ public interface TaskQueueService {
     <T> Future<?> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay);
     Future<Integer> finish(SqlConnection sqlConnection, long taskId);
     Future<Integer> fail(SqlConnection sqlConnection, long taskId);
-    Future<?> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay);
+    Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay);
 }

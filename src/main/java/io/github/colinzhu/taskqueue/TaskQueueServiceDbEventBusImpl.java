@@ -54,7 +54,7 @@ class TaskQueueServiceDbEventBusImpl implements TaskQueueService {
     }
 
     @Override
-    public Future<?> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay) {
+    public Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay) {
         return dbImpl.reenqueue(sqlConnection, taskId, delay);
     }
 }

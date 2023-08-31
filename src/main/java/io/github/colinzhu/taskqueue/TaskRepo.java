@@ -29,7 +29,7 @@ class TaskRepo {
     private static final String SQL_UPDATE_STATUS = "UPDATE TASKS SET STATUS = #{status} WHERE ID = #{id}";
 
     private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE STATUS IN ('NEW','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= CURRENT_TIMESTAMP() ORDER BY NEXT_PROCESS_TIME, ID FETCH FIRST #{batchSize} ROWS ONLY FOR UPDATE SKIP LOCKED";
-    private static final String SQL_SELECT_FOR_UPDATE_UPDATE = "UPDATE TASKS SET STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime} WHERE ID IN ({idList})";
+    private static final String SQL_UPDATE_NEXT_PROCESS = "UPDATE TASKS SET STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID IN ({idList})";
 
     Future<Task<String>> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
         return SqlTemplate.forUpdate(sqlConnection, SQL_INSERT)
@@ -81,7 +81,7 @@ class TaskRepo {
     Future<List<Task<String>>> checkout(SqlConnection sqlConnection, String queueName, int batchSize, Duration nextProcessDelay) {
         var taskList = selectTasks(sqlConnection, queueName, batchSize);
         return taskList
-                .compose(records -> updateTasks(sqlConnection, records, queueName, nextProcessDelay))
+                .compose(records -> updateNextProcessTime(sqlConnection, records.stream().map(Task::getId).collect(Collectors.toList()), nextProcessDelay))
                 .map(records -> taskList.result())
                 .onFailure(err -> log.error("[{}] Failed to check out tasks.", queueName, err));
     }
@@ -103,29 +103,29 @@ class TaskRepo {
                 });
     }
 
-    private Future<Integer> updateTasks(SqlConnection sqlConnection, List<Task<String>> records, String queueName, Duration nextProcessDelay) {
+    Future<Integer> updateNextProcessTime(SqlConnection sqlConnection, List<Long> taskIdList, Duration nextProcessDelay) {
         long start = System.currentTimeMillis();
         Future<Integer> future;
-        if (records.isEmpty()) {
+        if (taskIdList.isEmpty()) {
             future = Future.succeededFuture(0);
         } else {
-            String idValues = records.stream().map(record -> String.valueOf(record.getId())).collect(Collectors.joining(","));
-            String sql = SQL_SELECT_FOR_UPDATE_UPDATE.replace("{idList}", idValues);
+            String idValues = taskIdList.stream().map(String::valueOf).collect(Collectors.joining(","));
+            String sql = SQL_UPDATE_NEXT_PROCESS.replace("{idList}", idValues);
             ZonedDateTime newNextProcessTime = ZonedDateTime.now().plusSeconds(nextProcessDelay.getSeconds());
             future = SqlTemplate.forUpdate(sqlConnection, sql)
                     .execute(Map.of("newNextProcessTime", newNextProcessTime))
                     .map(SqlResult::rowCount)
                     .map(updateCount -> {
                         if (0 == updateCount) {
-                            throw new IllegalStateException(String.format("select for update -> update count is 0. Expected: %d, taskIDs: %s ", records.size(), idValues));
+                            throw new IllegalStateException(String.format("update next process timme: count is 0. Expected: %d, taskIDs: %s ", taskIdList.size(), idValues));
                         } else {
                             return updateCount;
                         }
                     });
         }
         return future
-                .onFailure(err -> log.error("[{}] updateTasks - failed, time:{}ms", queueName, System.currentTimeMillis() - start, err))
-                .onSuccess(updateCount -> log.debug("[{}] updateTasks - update count:{}, time:{}ms", queueName, updateCount, System.currentTimeMillis() - start));
+                .onFailure(err -> log.error("[{}] updateNextProcessTime - failed, time:{}ms", taskIdList, System.currentTimeMillis() - start, err))
+                .onSuccess(updateCount -> log.debug("[{}] updateNextProcessTime - update count:{}, time:{}ms", taskIdList, updateCount, System.currentTimeMillis() - start));
     }
 
 }

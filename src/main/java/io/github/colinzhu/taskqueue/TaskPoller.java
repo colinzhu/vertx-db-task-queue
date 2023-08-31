@@ -1,7 +1,6 @@
 package io.github.colinzhu.taskqueue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.vertx.core.Future;
@@ -17,13 +16,13 @@ import java.util.stream.Collectors;
 @Slf4j
 public class TaskPoller<T> {
     private final Vertx vertx;
-    private final PollConfig config;
+    private final PollConfig<T> config;
     private final TaskRepo taskRepo;
     private final JDBCPool pool;
     private boolean isToStop = false;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
-    public TaskPoller(Vertx vertx, JDBCPool pool, PollConfig config) {
+    public TaskPoller(Vertx vertx, JDBCPool pool, PollConfig<T> config) {
         this.vertx = vertx;
         this.config = config;
         this.pool = pool;
@@ -96,7 +95,7 @@ public class TaskPoller<T> {
 
     private Task<T> convertTask(Task<String> stringTask) {
         try {
-            return new Task<>(stringTask.getId(), objectMapper.readValue(stringTask.getPayload(), new TypeReference<>() {}));
+            return new Task<>(stringTask.getId(), objectMapper.readValue(stringTask.getPayload(), config.getPayloadClass()));
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Failed to deserialize JSON string to object. JSON: " + stringTask.getPayload(), e);
         }
