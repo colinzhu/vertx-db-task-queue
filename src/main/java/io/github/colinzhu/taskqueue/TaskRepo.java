@@ -124,8 +124,8 @@ class TaskRepo {
                     });
         }
         return future
-                .onFailure(err -> log.error("[{}] updateNextProcessTime - failed, time:{}ms", taskIdList, System.currentTimeMillis() - start, err))
-                .onSuccess(updateCount -> log.debug("[{}] updateNextProcessTime - update count:{}, time:{}ms", taskIdList, updateCount, System.currentTimeMillis() - start));
+                .onFailure(err -> log.error("{} updateNextProcessTime - failed, time:{}ms", taskIdList, System.currentTimeMillis() - start, err))
+                .onSuccess(updateCount -> log.debug("{} updateNextProcessTime - update count:{}, time:{}ms", taskIdList, updateCount, System.currentTimeMillis() - start));
     }
 
 }
