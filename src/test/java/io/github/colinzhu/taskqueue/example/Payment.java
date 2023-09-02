@@ -7,11 +7,15 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 public class Payment implements Serializable {
     private Long id;
     private String status;
-    private String instance;
     private Long createTime;
+
+    public Payment(String status, Long createTime) {
+        this.status = status;
+        this.createTime = createTime;
+    }
 }

@@ -47,7 +47,7 @@ public class PaymentCreateVerticle extends AbstractVerticle {
         }
         List<Future<?>> futures = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            Payment p = new Payment(System.nanoTime(), "CREATED", "B", System.currentTimeMillis());
+            Payment p = new Payment("CREATED", System.currentTimeMillis());
             final int i2 = i;
             futures.add(pool.withTransaction(sqlConnection -> insertPaymentAndTask(i2, p, sqlConnection)));
         }
@@ -59,15 +59,15 @@ public class PaymentCreateVerticle extends AbstractVerticle {
     private Future<?> insertPaymentAndTask(int number, Payment p, SqlConnection sqlConnection) {
         long start = System.currentTimeMillis();
         return insertPayment(sqlConnection, p)
-                .compose(payment -> TaskQueueService.taskQueue().enqueue(sqlConnection, "QueuePaymentToBeChecked", UUID.randomUUID().toString(), payment))
+                .compose(payment -> TaskQueueService.taskQueue(pool).enqueue(sqlConnection, "QueuePaymentToBeChecked", UUID.randomUUID().toString(), payment))
                 .onSuccess(event -> log.debug("#{} payment and task created, time: {}ms", number, System.currentTimeMillis() - start))
                 .onFailure(e -> log.error("error creating payment / task", e));
     }
 
     private Future<Payment> insertPayment(SqlConnection sqlConnection, Payment payment) {
         long start = System.currentTimeMillis();
-        return sqlConnection.preparedQuery("insert into PAYMENT (STATUS, INSTANCE, CREATE_TIME) values (?, ?, ?)")
-                .execute(Tuple.of(payment.getStatus(), payment.getInstance(), payment.getCreateTime()))
+        return sqlConnection.preparedQuery("insert into PAYMENT (STATUS, CREATE_TIME) values (?, ?, ?)")
+                .execute(Tuple.of(payment.getStatus(), payment.getCreateTime()))
                 .onSuccess(rows -> log.debug("payment inserted, ID:{} time:{}ms", rows.property(JDBCPool.GENERATED_KEYS).getLong(0), System.currentTimeMillis() - start))
                 .map(result -> payment)
                 .onFailure(e -> log.error("error inserting", e));

@@ -108,7 +108,7 @@ public class TaskPoller<T> {
                 .recover(err -> {
                     log.error("[{}][taskId:{}] Error when try to process the task.", config.getQueueName(), stringTask.getId(), err);
                     // for recover to mark the task as ERROR, it needs to be in a separate connection
-                    return pool.withConnection(conn -> TaskQueueService.taskQueue().fail(conn, stringTask.getId()));
+                    return pool.withConnection(conn -> TaskQueueService.taskQueue(pool).fail(conn, stringTask.getId()));
                 });
     }
 

@@ -69,7 +69,6 @@ public class H2Database {
                     ID bigint auto_increment,
                     STATUS varchar(30),
                     CREATE_TIME bigint,
-                    INSTANCE varchar(30),
                     PRIMARY KEY (ID)
                 );
                 """;

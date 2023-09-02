@@ -2,10 +2,12 @@ package io.github.colinzhu.taskqueue;
 
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
+import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.SqlConnection;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.util.function.Function;
 
 /**
  * QueueClient
@@ -21,24 +23,29 @@ class TaskQueueServiceDbEventBusImpl implements TaskQueueService {
     private final TaskQueueService dbImpl;
     private static TaskQueueService instance;
 
-    public static TaskQueueService getInstance(Vertx vertx) {
+    public static TaskQueueService getInstance(Vertx vertx, JDBCPool pool) {
         if (null == instance) {
-            instance = new TaskQueueServiceDbEventBusImpl(vertx);
+            instance = new TaskQueueServiceDbEventBusImpl(vertx, pool);
         }
         return instance;
     }
 
-    private TaskQueueServiceDbEventBusImpl(Vertx vertx) {
+    private TaskQueueServiceDbEventBusImpl(Vertx vertx, JDBCPool pool) {
         this.vertx = vertx;
-        this.dbImpl = TaskQueueServiceDbImpl.getInstance();
+        this.dbImpl = TaskQueueServiceDbImpl.getInstance(pool);
     }
 
     @Override
-    public <T> Future<?> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload) {
+    public <T> Future<Task<String>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload) {
         throw new UnsupportedOperationException("For using event bus, please use method with `processDelay` parameter.");
     }
 
-    public <T> Future<?> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
+    @Override
+    public <T> Future<T> withTaskQueueTxn(Function<SqlConnection, Future<T>> function, Function<SqlConnection, Future<Integer>> taskFunction) {
+        return dbImpl.withTaskQueueTxn(function, taskFunction);
+    }
+
+    public <T> Future<Task<String>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
         if (processDelay.isZero()) {
             throw new IllegalArgumentException("For using event bus, processDelay cannot be zero");
         }
@@ -46,7 +53,7 @@ class TaskQueueServiceDbEventBusImpl implements TaskQueueService {
                 .map(task -> {
                     vertx.eventBus().send(queueName, task);
                     log.info("[{}]Task sent to event bus, refNumber:{}, taskId:{}, nextProcessDelay:{}",
-                            queueName, refNumber, ((Task<?>)task).getId(), processDelay);
+                            queueName, refNumber, task.getId(), processDelay);
                     return task;
                 });
     }
