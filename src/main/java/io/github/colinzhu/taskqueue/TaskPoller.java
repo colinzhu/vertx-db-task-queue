@@ -63,13 +63,13 @@ public class TaskPoller<T> {
                 });
     }
 
-    private Future<List<Task<String>>> checkOutTasks(SqlConnection sqlConnection) {
+    private Future<List<TaskEntity<String>>> checkOutTasks(SqlConnection sqlConnection) {
         return taskRepo.checkout(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay());
     }
 
-    private void handleFetchedTasks(List<Task<String>> batch, String pollId, long start) {
-        List<Long> taskIdList = batch.stream().map(Task::getId).collect(Collectors.toList());
-        List<String> refNumberList = batch.stream().map(Task::getReferenceNumber).collect(Collectors.toList());
+    private void handleFetchedTasks(List<TaskEntity<String>> batch, String pollId, long start) {
+        List<Long> taskIdList = batch.stream().map(TaskEntity::getId).collect(Collectors.toList());
+        List<String> refNumberList = batch.stream().map(TaskEntity::getReferenceNumber).collect(Collectors.toList());
         String logTmpl = "[%s] size:%d, taskIdList:%s, refList:%s".formatted(pollId, batch.size(), taskIdList, refNumberList);
         log.debug("{} fetched. Time:{}ms", logTmpl, System.currentTimeMillis() - start);
         long processStart = System.currentTimeMillis();
@@ -97,17 +97,10 @@ public class TaskPoller<T> {
         }
     }
 
-    private Task<T> convertTask(Task<String> stringTask) {
+    private Task<T> convertTask(TaskEntity<String> stringTask) {
         try {
             return new Task<>(
                     stringTask.getId(),
-                    stringTask.getReferenceNumber(),
-                    stringTask.getQueueName(),
-                    stringTask.getStatus(),
-                    stringTask.getAttempt(),
-                    stringTask.getCreateTime(),
-                    stringTask.getNextProcessTime(),
-                    stringTask.getLastUpdateTime(),
                     objectMapper.readValue(stringTask.getPayload(), config.getPayloadClass())
             );
         } catch (JsonProcessingException e) {
@@ -115,7 +108,7 @@ public class TaskPoller<T> {
         }
     }
 
-    private Future<Integer> processTask(Task<String> stringTask) {
+    private Future<Integer> processTask(TaskEntity<String> stringTask) {
         return Future.succeededFuture()
                 .map(res -> convertTask(stringTask))
                 .compose(tTask -> config.getTaskProcessor().apply(tTask))

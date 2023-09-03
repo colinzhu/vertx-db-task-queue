@@ -30,14 +30,15 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
     private TaskQueueServiceDbImpl() {
     }
 
-    public <T> Future<Task<String>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
+    public <T> Future<Task<T>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
         String payloadStr;
         try {
             payloadStr = objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException e) {
             return Future.failedFuture(e);
         }
-        return taskRepo.insert(sqlConnection, queueName, refNumber, payloadStr, processDelay);
+        return taskRepo.insert(sqlConnection, queueName, refNumber, payloadStr, processDelay)
+                .map(taskEntity -> new Task<>(taskEntity.getId(), payload));
     }
 
     @Override

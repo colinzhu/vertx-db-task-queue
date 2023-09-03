@@ -34,11 +34,11 @@ class TaskQueueServiceDbEventBusImpl implements TaskQueueService {
     }
 
     @Override
-    public <T> Future<Task<String>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload) {
+    public <T> Future<Task<T>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload) {
         throw new UnsupportedOperationException("For using event bus, please use method with `processDelay` parameter.");
     }
 
-    public <T> Future<Task<String>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
+    public <T> Future<Task<T>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
         if (processDelay.isZero()) {
             throw new IllegalArgumentException("For using event bus, processDelay cannot be zero");
         }
