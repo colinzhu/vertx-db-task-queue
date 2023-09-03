@@ -43,7 +43,7 @@ public class TaskPoller<T> {
      */
     private void fetchBatchAndProcess() {
         if (isToStop) {
-            log.info("isToRun=false, stop polling");
+            log.info("isToStop=true, stop polling");
             return;
         }
         long start = System.currentTimeMillis();
@@ -83,7 +83,7 @@ public class TaskPoller<T> {
 
     private void rerunWithDelayIfNecessary(Duration delay) {
         if (isToStop) {
-            log.info("isToRun=false, stop polling");
+            log.info("isToStop=true, stop polling");
             return;
         }
         if (config.isPollNextBatch()) {

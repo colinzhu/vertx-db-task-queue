@@ -115,7 +115,7 @@ class TaskQueueTest {
         savePayment(payment)
                 .compose(p -> pool.withTransaction(sqlConnection -> taskQueueService.enqueue(sqlConnection, "Q3-poller-stoppped", "ref1", p)))
                 .onComplete(testContext.succeeding(task -> {
-                    vertx.setTimer(3000, id -> {
+                    vertx.setTimer(6000, id -> {
                         // verify payment status
                         retrievePayment(payment.getId()).onComplete(testContext.succeeding(res -> {
                             Assertions.assertEquals("CREATED", res.getStatus(), "PAYMENT should not be changed");
