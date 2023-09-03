@@ -25,7 +25,7 @@ import static org.slf4j.Logger.ROOT_LOGGER_NAME;
 
 @ExtendWith(VertxExtension.class)
 @Slf4j
-class TaskPollerTest {
+class TaskQueueTest {
     private static JDBCPool pool;
     private static TaskQueueService taskQueueService;
 
@@ -81,7 +81,7 @@ class TaskPollerTest {
 
         Function<Task<Payment>, Future<Integer>> taskProcessor = task -> {
             log.info("Processing {}", task.getPayload());
-            return pool.withTransaction(conn -> updatePayment(conn, payment)
+            return pool.withTransaction(conn -> updatePayment(conn, task.getPayload())
                     .compose(updateCount -> {
                         if ("REENQUEUE".equals(afterProcessAction)) {
                             return taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5));
@@ -93,6 +93,42 @@ class TaskPollerTest {
         PollConfig<Payment> pollConfig = new PollConfig<>(queueName, 5, Duration.ofMinutes(10), taskProcessor, Payment.class);
         TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
+    }
+
+    @Test
+    @DisplayName("Poller is stopped - no task will be picked up")
+    void testPollerStopped(Vertx vertx, VertxTestContext testContext) {
+        Checkpoint checkpoint = testContext.checkpoint(2);
+
+        Function<Task<Payment>, Future<Integer>> taskProcessor = task -> {
+            log.info("Processing {}", task.getPayload());
+            return pool.withTransaction(conn -> updatePayment(conn, task.getPayload())
+                    .compose(updateCount -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5))));
+        };
+
+        PollConfig<Payment> pollConfig = new PollConfig<>("Q3-poller-stoppped", 5, Duration.ofMinutes(10), taskProcessor, Payment.class);
+        TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
+        poller.start();
+        poller.stop();
+
+        Payment payment = new Payment("CREATED", System.currentTimeMillis());
+        savePayment(payment)
+                .compose(p -> pool.withTransaction(sqlConnection -> taskQueueService.enqueue(sqlConnection, "Q3-poller-stoppped", "ref1", p)))
+                .onComplete(testContext.succeeding(task -> {
+                    vertx.setTimer(3000, id -> {
+                        // verify payment status
+                        retrievePayment(payment.getId()).onComplete(testContext.succeeding(res -> {
+                            Assertions.assertEquals("CREATED", res.getStatus(), "PAYMENT should not be changed");
+                            checkpoint.flag();
+                        }));
+
+                        // verify task
+                        retrieveTask(task.getId()).onComplete(testContext.succeeding(res -> {
+                            Assertions.assertTrue(List.of("CREATED").contains(res.getString("STATUS")), "task should not be checked-out");
+                            checkpoint.flag();
+                        }));
+                    });
+                }));
     }
 
     @ParameterizedTest
