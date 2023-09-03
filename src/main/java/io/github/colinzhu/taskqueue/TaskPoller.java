@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 public class TaskPoller<T> {
     private final Vertx vertx;
     private final PollConfig<T> config;
-    private final TaskRepo taskRepo;
+    private final TaskEntityRepo taskEntityRepo;
     private final JDBCPool pool;
     private boolean isToStop = false;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
@@ -26,7 +26,7 @@ public class TaskPoller<T> {
         this.vertx = vertx;
         this.config = config;
         this.pool = pool;
-        this.taskRepo = TaskRepo.getInstance();
+        this.taskEntityRepo = TaskEntityRepo.getInstance();
         log.info("Poller instance[{}] created: {}", this.hashCode(), config);
     }
 
@@ -58,13 +58,13 @@ public class TaskPoller<T> {
                         handleFetchedTasks(batch, pollId, start);
                     }
                 }).onFailure(e -> {
-                    log.error("[{}] Failed to check out batch of tasks, retry in {}", pollId, config.getErrPollingRetryInterval(), e);
-                    rerunWithDelayIfNecessary(config.getErrPollingRetryInterval());
+                    log.error("[{}] Failed to check out batch of tasks, retry in {}", pollId, config.getErrorCheckOutInterval(), e);
+                    rerunWithDelayIfNecessary(config.getErrorCheckOutInterval());
                 });
     }
 
     private Future<List<TaskEntity>> checkOutTasks(SqlConnection sqlConnection) {
-        return taskRepo.checkout(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay());
+        return taskEntityRepo.checkout(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay());
     }
 
     private void handleFetchedTasks(List<TaskEntity> batch, String pollId, long start) {
@@ -81,7 +81,7 @@ public class TaskPoller<T> {
         }).onFailure(e -> {
             // all task should be processed successfully or recovered (marked as ERROR), this is only a safety net e.g. not able to mark task as ERROR into DB
             log.error("{}, at least one item failed (even unable to mark as ERROR).", logTmpl, e);
-            rerunWithDelayIfNecessary(config.getProcessErrRetryInterval());
+            rerunWithDelayIfNecessary(config.getErrorProcessTasksInterval());
         });
     }
 
@@ -113,7 +113,7 @@ public class TaskPoller<T> {
                 .map(res -> convertTask(taskEntity))
                 .compose(tTask -> config.getTaskProcessor().apply(tTask))
                 .recover(err -> {
-                    log.error("[{}][taskId:{}] Error when try to process the task.", config.getQueueName(), taskEntity.getId(), err);
+                    log.error("[{}][taskId:{}] Error when try to process the task. Mark it as ERROR.", config.getQueueName(), taskEntity.getId(), err);
                     // for recover to mark the task as ERROR, it needs to be in a separate connection
                     return pool.withConnection(conn -> TaskQueueService.taskQueue().fail(conn, taskEntity.getId()));
                 });

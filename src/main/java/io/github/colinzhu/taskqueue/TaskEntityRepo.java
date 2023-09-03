@@ -15,12 +15,12 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
-class TaskRepo {
-    private static final TaskRepo instance = new TaskRepo();
-    public static TaskRepo getInstance() {
+class TaskEntityRepo {
+    private static final TaskEntityRepo instance = new TaskEntityRepo();
+    public static TaskEntityRepo getInstance() {
         return instance;
     }
-    private TaskRepo() {
+    private TaskEntityRepo() {
     }
 
     private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, PAYLOAD, REFERENCE_NUMBER, NEXT_PROCESS_TIME) VALUES (#{queueName}, 'CREATED', #{payload}, #{refNumber}, #{nextProcessTime})";

@@ -26,7 +26,7 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
         return instance;
     }
 
-    private final TaskRepo taskRepo = TaskRepo.getInstance();
+    private final TaskEntityRepo taskEntityRepo = TaskEntityRepo.getInstance();
     private TaskQueueServiceDbImpl() {
     }
 
@@ -37,22 +37,22 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
         } catch (JsonProcessingException e) {
             return Future.failedFuture(e);
         }
-        return taskRepo.insert(sqlConnection, queueName, refNumber, payloadStr, processDelay)
+        return taskEntityRepo.insert(sqlConnection, queueName, refNumber, payloadStr, processDelay)
                 .map(taskEntity -> new Task<>(taskEntity.getId(), payload));
     }
 
     @Override
     public Future<Integer> finish(SqlConnection sqlConnection, long taskId) {
-        return taskRepo.delete(sqlConnection, taskId);
+        return taskEntityRepo.delete(sqlConnection, taskId);
     }
 
     @Override
     public Future<Integer> fail(SqlConnection sqlConnection, long taskId) {
-        return taskRepo.updateStatusToError(sqlConnection, taskId);
+        return taskEntityRepo.updateStatusToError(sqlConnection, taskId);
     }
 
     @Override
     public Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay) {
-        return taskRepo.reenqueue(sqlConnection, taskId, delay);
+        return taskEntityRepo.reenqueue(sqlConnection, taskId, delay);
     }
 }
