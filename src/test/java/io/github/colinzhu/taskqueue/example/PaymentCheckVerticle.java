@@ -17,18 +17,17 @@ public class PaymentCheckVerticle extends AbstractVerticle {
     @Override
     public void start() {
         pool = H2Database.getJdbcPool(vertx); // TODO check if pool is shared
-        log.info("{}-{} {} started", PaymentCheckVerticle.class.getName(), this.hashCode(), pool.hashCode());
 
         // prepare a taskProcessor
         PaymentCheckTaskProcessor taskProcessor = new PaymentCheckTaskProcessor(vertx, pool);
 
         // register taskProcessor to poller
-        PollConfig<Payment> pollConfig = new PollConfig<>("QueuePaymentToBeChecked", 5, Duration.ofMinutes(10), taskProcessor, Payment.class);
+        PollConfig<Payment> pollConfig = new PollConfig<>("payment.check", 5, Duration.ofMinutes(10), taskProcessor, Payment.class);
         poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
 
         // register taskProcessor to event bus
-        vertx.eventBus().consumer("QueuePaymentToBeChecked", taskProcessor);
-
+        vertx.eventBus().consumer("payment.check", taskProcessor);
+        log.info("{}[{}] instance started", PaymentCheckVerticle.class.getSimpleName(), this.hashCode());
     }
 }

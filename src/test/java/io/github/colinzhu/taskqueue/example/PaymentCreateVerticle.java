@@ -14,7 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -25,6 +24,7 @@ public class PaymentCreateVerticle extends AbstractVerticle {
     public void start() throws Exception {
         super.start();
         startHttpServer();
+        log.info("{}[{}] instance started", PaymentCreateVerticle.class.getSimpleName(), this.hashCode());
     }
 
     private void startHttpServer() {
@@ -59,7 +59,7 @@ public class PaymentCreateVerticle extends AbstractVerticle {
     private Future<?> insertPaymentAndTask(int number, Payment p, SqlConnection sqlConnection) {
         long start = System.currentTimeMillis();
         return insertPayment(sqlConnection, p)
-                .compose(payment -> TaskQueueService.taskQueue().enqueue(sqlConnection, "QueuePaymentToBeChecked", UUID.randomUUID().toString(), payment))
+                .compose(payment -> TaskQueueService.taskQueue().enqueue(sqlConnection, "payment.check", payment.getId().toString(), payment))
                 .onSuccess(event -> log.debug("#{} payment and task created, time: {}ms", number, System.currentTimeMillis() - start))
                 .onFailure(e -> log.error("error creating payment / task", e));
     }

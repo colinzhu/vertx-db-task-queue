@@ -4,12 +4,14 @@ import io.vertx.core.Future;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import lombok.ToString;
 
 import java.time.Duration;
 import java.util.function.Function;
 
 @RequiredArgsConstructor
 @Getter
+@ToString
 public class PollConfig<T> {
     private final String queueName;
     private final int batchSize;
@@ -26,10 +28,5 @@ public class PollConfig<T> {
     private Duration errPollingRetryInterval = Duration.ofSeconds(60);
     @Setter
     private boolean pollNextBatch = true;
-    @Override
-    public String toString() {
-        return "QueueConfig{" +
-                "queueName='" + queueName + '\'' +
-                '}';
-    }
+
 }

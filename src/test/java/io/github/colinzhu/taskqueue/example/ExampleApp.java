@@ -19,7 +19,7 @@ public class ExampleApp {
         setLogLevel(ROOT_LOGGER_NAME, Level.INFO);
         setLogLevel("com.mchange.v2.resourcepool.BasicResourcePool", Level.INFO);
         setLogLevel("io.github.colinzhu.taskqueue", Level.INFO);
-        setLogLevel("io.github.colinzhu.taskqueue.TaskRepo", Level.WARN);
+        setLogLevel("io.github.colinzhu.taskqueue.TaskRepo", Level.INFO);
         setLogLevel(PaymentCheckTaskProcessor.class.getName(), Level.INFO);
 
         Vertx vertx = Vertx.vertx();

@@ -17,33 +17,41 @@ import java.util.stream.Collectors;
 @Slf4j
 class TaskRepo {
     private static final TaskRepo instance = new TaskRepo();
-
     public static TaskRepo getInstance() {
         return instance;
     }
-
     private TaskRepo() {
     }
 
     private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, PAYLOAD, REFERENCE_NUMBER, NEXT_PROCESS_TIME) VALUES (#{queueName}, 'CREATED', #{payload}, #{refNumber}, #{nextProcessTime})";
     private static final String SQL_DELETE = "DELETE TASKS WHERE ID = #{id}";
     private static final String SQL_UPDATE_STATUS = "UPDATE TASKS SET STATUS = #{status} WHERE ID = #{id}";
-
     private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= CURRENT_TIMESTAMP() ORDER BY NEXT_PROCESS_TIME, ID FETCH FIRST #{batchSize} ROWS ONLY FOR UPDATE SKIP LOCKED";
     private static final String SQL_CHECK_OUT = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID IN ({idList})";
     private static final String SQL_RE_ENQUEUE = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID = #{id}";
 
     Future<Task<String>> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
+        ZonedDateTime now = ZonedDateTime.now();
+        ZonedDateTime nextProcessTime = now.plus(processDelay);
         return SqlTemplate.forUpdate(sqlConnection, SQL_INSERT)
                 .execute(Map.of(
                         "queueName", queueName,
                         "payload", payload,
                         "refNumber", refNumber,
-                        "nextProcessTime", ZonedDateTime.now().plus(processDelay)))
-                .map(sqlResult -> new Task<>(sqlResult.property(JDBCPool.GENERATED_KEYS).getLong(0), payload))
-                .onSuccess(task -> log.info("[{}]Task inserted, refNumber:{}, taskId:{}, nextProcessDelay:{}",
-                        queueName, refNumber, task.getId(), processDelay))
-                .onFailure(err -> log.info("[{}]Fail to insert task, refNumber:{}", queueName, refNumber, err));
+                        "nextProcessTime", nextProcessTime))
+                .map(sqlResult -> new Task<>(
+                        sqlResult.property(JDBCPool.GENERATED_KEYS).getLong(0),
+                        refNumber,
+                        queueName,
+                        "CREATED",
+                        0L,
+                        now,
+                        nextProcessTime,
+                        now,
+                        payload
+                ))
+                .onSuccess(task -> log.info("task inserted: {} processDelay:{}", task, processDelay))
+                .onFailure(err -> log.info("task insert failed: [{}], refNumber:{}", queueName, refNumber, err));
     }
 
     Future<Integer> delete(SqlConnection sqlConnection, long taskId) {
@@ -58,7 +66,7 @@ class TaskRepo {
                         return deleteCount;
                     }
                 })
-                .onSuccess(sqlResult -> log.debug("[taskId:{}] task deleted. Time:{}ms", taskId, System.currentTimeMillis() - start))
+                .onSuccess(sqlResult -> log.info("[taskId:{}] task deleted. Time:{}ms", taskId, System.currentTimeMillis() - start))
                 .onFailure(err -> log.error("[taskId:{}] fail to delete task. Time:{}ms", taskId, System.currentTimeMillis() - start, err));
     }
 
@@ -78,7 +86,7 @@ class TaskRepo {
                         return updateCount;
                     }
                 })
-                .onSuccess(sqlResult -> log.debug("[taskId:{}] task status updated to [{}]. Time:{}ms", taskId, status, System.currentTimeMillis() - start))
+                .onSuccess(sqlResult -> log.info("[taskId:{}] task status updated to [{}]. Time:{}ms", taskId, status, System.currentTimeMillis() - start))
                 .onFailure(err -> log.error("[taskId:{}] fail to update status to [{}]. Time:{}ms", taskId, status, System.currentTimeMillis() - start, err));
     }
 
@@ -100,6 +108,13 @@ class TaskRepo {
                     List<Task<String>> records = new ArrayList<>();
                     rows.forEach(row -> records.add(new Task<>(
                             row.getLong("ID"),
+                            row.getString("REFERENCE_NUMBER"),
+                            row.getString("QUEUE_NAME"),
+                            row.getString("STATUS"),
+                            row.getLong("ATTEMPT"),
+                            row.getOffsetDateTime("CREATE_TIME").toZonedDateTime(),
+                            row.getOffsetDateTime("NEXT_PROCESS_TIME").toZonedDateTime(),
+                            row.getOffsetDateTime("LAST_UPDATE_TIME").toZonedDateTime(),
                             row.getString("PAYLOAD")
                     )));
                     log.debug("[{}] selectTasks - select count (for update):{}, time:{}ms", queueName, records.size(), System.currentTimeMillis() - start);
@@ -128,8 +143,8 @@ class TaskRepo {
                     });
         }
         return future
-                .onFailure(err -> log.error("{} checkout - failed, time:{}ms", taskIdList, System.currentTimeMillis() - start, err))
-                .onSuccess(updateCount -> log.debug("{} checkout - update count:{}, time:{}ms", taskIdList, updateCount, System.currentTimeMillis() - start));
+                .onSuccess(updateCount -> log.debug("taskIdList:{} checkout - update count:{}, time:{}ms", taskIdList, updateCount, System.currentTimeMillis() - start))
+                .onFailure(err -> log.error("taskIdList:{} checkout - failed, time:{}ms", taskIdList, System.currentTimeMillis() - start, err));
     }
 
 
@@ -146,7 +161,7 @@ class TaskRepo {
                         return updateCount;
                     }
                 })
-                .onSuccess(sqlResult -> log.debug("[taskId:{}] reenqueue to [{}]. Time:{}ms", taskId, newNextProcessTime, System.currentTimeMillis() - start))
-                .onFailure(err -> log.error("[taskId:{}] fail to reenqueue to [{}]. Time:{}ms", taskId, newNextProcessTime, System.currentTimeMillis() - start, err));
+                .onSuccess(sqlResult -> log.info("[taskId:{}] reenqueued, nextProcessTime:[{}]. Time:{}ms", taskId, newNextProcessTime, System.currentTimeMillis() - start))
+                .onFailure(err -> log.error("[taskId:{}] fail to reenqueue to nextProcessTime:[{}]. Time:{}ms", taskId, newNextProcessTime, System.currentTimeMillis() - start, err));
     }
 }

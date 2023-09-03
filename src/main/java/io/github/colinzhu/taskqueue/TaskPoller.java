@@ -27,6 +27,7 @@ public class TaskPoller<T> {
         this.config = config;
         this.pool = pool;
         this.taskRepo = TaskRepo.getInstance();
+        log.info("Poller instance[{}] created: {}", this.hashCode(), config);
     }
 
     public void start() {
@@ -67,16 +68,19 @@ public class TaskPoller<T> {
     }
 
     private void handleFetchedTasks(List<Task<String>> batch, String pollId, long start) {
-        log.debug("[{}] size:{}, fetched. Time:{}ms", pollId, batch.size(), System.currentTimeMillis() - start);
+        List<Long> taskIdList = batch.stream().map(Task::getId).collect(Collectors.toList());
+        List<String> refNumberList = batch.stream().map(Task::getReferenceNumber).collect(Collectors.toList());
+        String logTmpl = "[%s] size:%d, taskIdList:%s, refList:%s".formatted(pollId, batch.size(), taskIdList, refNumberList);
+        log.debug("{} fetched. Time:{}ms", logTmpl, System.currentTimeMillis() - start);
         long processStart = System.currentTimeMillis();
         List<Future<Integer>> futures = batch.stream().map(this::processTask).collect(Collectors.toList());
         Future.join(futures).onSuccess(event -> {
             long end = System.currentTimeMillis();
-            log.info("[{}] size:{}, all tasks processing completed (finished or marked as ERROR). Fetch and process time:{}ms, fetch time:{}ms, process time:{}ms", pollId, futures.size(), end - start, processStart - start, end - processStart);
+            log.info("{}, all tasks finished or marked as ERROR. Fetch and process time:{}ms, fetch time:{}ms, process time:{}ms", logTmpl, end - start, processStart - start, end - processStart);
             rerunWithDelayIfNecessary(config.getHasTaskPollInterval());
         }).onFailure(e -> {
             // all task should be processed successfully or recovered (marked as ERROR), this is only a safety net e.g. not able to mark task as ERROR into DB
-            log.error("[{}] size:{}, at least one item failed (even unable to mark as ERROR). Retry in {}", pollId, batch.size(), config.getProcessErrRetryInterval(), e);
+            log.error("{}, at least one item failed (even unable to mark as ERROR).", logTmpl, e);
             rerunWithDelayIfNecessary(config.getProcessErrRetryInterval());
         });
     }
@@ -95,7 +99,17 @@ public class TaskPoller<T> {
 
     private Task<T> convertTask(Task<String> stringTask) {
         try {
-            return new Task<>(stringTask.getId(), objectMapper.readValue(stringTask.getPayload(), config.getPayloadClass()));
+            return new Task<>(
+                    stringTask.getId(),
+                    stringTask.getReferenceNumber(),
+                    stringTask.getQueueName(),
+                    stringTask.getStatus(),
+                    stringTask.getAttempt(),
+                    stringTask.getCreateTime(),
+                    stringTask.getNextProcessTime(),
+                    stringTask.getLastUpdateTime(),
+                    objectMapper.readValue(stringTask.getPayload(), config.getPayloadClass())
+            );
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Failed to deserialize JSON string to object. JSON: " + stringTask.getPayload(), e);
         }
