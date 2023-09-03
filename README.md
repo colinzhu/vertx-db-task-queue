@@ -4,7 +4,7 @@
 A DB based task queue with vert.x
 
 ## Usage - API
-- `Task` - POJO to be processed by task processor `Function<Task<Payment>, Future<Integer>>`
+- `Task` - POJO to be processed by task processor `Function<Task<T>, Future<Integer>>`
 - `TaskPoller` - Poller to poll tasks from DB and invoke the task processor
 - `TaskConfig` - POJO to store the poller config
 - `TaskQueueService` - Service to 
@@ -14,7 +14,7 @@ A DB based task queue with vert.x
   4. mark the task as error
 
 ## Example
-Please refer to `ExampleApp` in test package
+Please refer to `TaskQueueTest` in test package
 
 ## TODO
 - [x] Integrate with event bus - done
