@@ -13,6 +13,8 @@ import io.vertx.sqlclient.*;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
@@ -34,14 +36,9 @@ class TaskPollerTest {
         setLogLevel("io.github.colinzhu.taskqueue.TaskRepo", Level.DEBUG);
 
         pool = TestHelper.getJdbcPool(vertx);
-        taskQueueService = TaskQueueService.taskQueue(pool);
+        taskQueueService = TaskQueueService.taskQueue();
         TestHelper.createTables(pool).onComplete(ar -> testContext.completeNow());
     }
-//
-//    @BeforeEach
-//    void setUp(Vertx vertx, VertxTestContext testContext) {
-////        TestHelper.createTables(pool).onComplete(ar -> testContext.completeNow());
-//    }
 
     private static void setLogLevel(String logger, Level level) {
         Logger taskQueueLogger = (Logger) LoggerFactory.getLogger(logger);
@@ -63,9 +60,7 @@ class TaskPollerTest {
 
         Function<Task<Payment>, Future<Integer>> taskProcessor = task -> {
             log.info("Processing {}", task.getPayload());
-            Future<Integer> updateFuture = taskQueueService.withTaskQueueTxn(
-                    conn -> updatePayment(conn, payment),
-                    conn -> taskQueueService.finish(conn, task.getId()));
+            Future<Integer> updateFuture = pool.withTransaction(conn -> updatePayment(conn, payment).compose(updateCount -> taskQueueService.finish(conn, task.getId())));
 
             // verify payment status
             updateFuture.compose(updateCount -> pool.withConnection(conn -> retrievePayment(conn, payment.getId())))
@@ -85,10 +80,11 @@ class TaskPollerTest {
         poller.start();
     }
 
-    @Test
-    @DisplayName("TaskProcessingFailed - within one transaction, business entity object updated, but has other exception, business entity object should roll back, tasks should be updated to ERROR")
-    void testTaskProcessingFailed_AfterPersistBusinessObject(Vertx vertx, VertxTestContext testContext) {
-        Checkpoint checkpoint = testContext.checkpoint(5);
+    @ParameterizedTest
+    @DisplayName("Task processing error - changes should be rolled back, tasks should be updated to ERROR")
+    @CsvSource({"ERR_IN_TXN","ERR_BEFORE_TXN"})
+    void testTaskProcessingError(String errLocation, Vertx vertx, VertxTestContext testContext) {
+        Checkpoint checkpoint = testContext.checkpoint(2);
         Payment payment = new Payment("CREATED", System.currentTimeMillis());
         savePayment(payment)
                 .compose(p -> pool.withTransaction(sqlConnection -> taskQueueService.enqueue(sqlConnection, "Q1", "ref1", p)))
@@ -98,7 +94,7 @@ class TaskPollerTest {
                         // verify payment status
                         pool.withConnection(conn -> retrievePayment(conn, payment.getId()))
                                 .onComplete(testContext.succeeding(p -> {
-                                    Assertions.assertEquals("CREATED", p.getStatus(), "PAYMENT status should be rolled back");
+                                    Assertions.assertEquals("CREATED", p.getStatus(), "PAYMENT status should be rolled back / no change");
                                     checkpoint.flag();
                                 }));
 
@@ -109,86 +105,22 @@ class TaskPollerTest {
                                     checkpoint.flag();
                                 }));
                     });
-                    checkpoint.flag();
                 }));
 
         Function<Task<Payment>, Future<Integer>> taskProcessor = task -> {
             log.info("Processing {}", task.getPayload());
-            Future<Integer> updateFuture = taskQueueService.withTaskQueueTxn(
-                    conn -> updatePayment(conn, payment)
-                            .map(updateCount -> {
-                                if (1 == 2) {
-                                    return updateCount;
-                                }
-                                throw new RuntimeException("simulate exception during runtime");
-                            }),
-                    conn -> taskQueueService.finish(conn, task.getId())
+            if ("ERR_BEFORE_TXN".equals(errLocation)) {
+                throw new RuntimeException("simulate exception before transaction");
+            }
+            return pool.withTransaction(conn -> updatePayment(conn, payment)
+                    .map(updateCount -> {
+                        if ("ERR_IN_TXN".equals(errLocation)) {
+                            throw new RuntimeException("simulate exception within transaction");
+                        }
+                        return updateCount;
+                    })
+                    .compose(updateCount -> taskQueueService.finish(conn, task.getId()))
             );
-
-            updateFuture.onComplete(res -> {
-                Assertions.assertTrue(res.failed());
-
-                // verify payment status
-                pool.withConnection(conn -> retrievePayment(conn, payment.getId()))
-                        .onComplete(testContext.succeeding(p -> {
-                            Assertions.assertEquals("CREATED", p.getStatus(), "PAYMENT status should be rolled back");
-                            checkpoint.flag();
-                        }));
-
-                // verify task
-                pool.withConnection(conn -> retrieveTask(conn, task.getId()))
-                        .onComplete(testContext.succeeding(row -> {
-                            Assertions.assertEquals("PROCESSING", row.getString("STATUS"), "task status not yet updated to ERROR");
-                            checkpoint.flag();
-                        }));
-            });
-
-            return updateFuture;
-        };
-
-        PollConfig<Payment> pollConfig = new PollConfig<>("Q1", 5, Duration.ofMinutes(10), taskProcessor, Payment.class);
-        TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
-        poller.start();
-    }
-
-    @Test
-    @DisplayName("TaskProcessingFailed - within one transaction, business entity object updated, but has other exception, business entity object should roll back, tasks should be updated to ERROR")
-    void testTaskProcessingFailed2(Vertx vertx, VertxTestContext testContext) {
-        Checkpoint checkpoint = testContext.checkpoint(3);
-        Payment payment = new Payment("CREATED", System.currentTimeMillis());
-        savePayment(payment)
-                .compose(p -> pool.withTransaction(sqlConnection -> taskQueueService.enqueue(sqlConnection, "Q1", "ref1", p)))
-                .onComplete(testContext.succeeding(task -> {
-                    // after 6 seconds
-                    vertx.setTimer(6000, id -> {
-                        // verify payment status
-                        pool.withConnection(conn -> retrievePayment(conn, payment.getId()))
-                                .onComplete(testContext.succeeding(p -> {
-                                    Assertions.assertEquals("CREATED", p.getStatus(), "PAYMENT status should be rolled back");
-                                    checkpoint.flag();
-                                }));
-
-                        // verify task
-                        pool.withConnection(conn -> retrieveTask(conn, task.getId()))
-                                .onComplete(testContext.succeeding(row -> {
-                                    Assertions.assertEquals("ERROR", row.getString("STATUS"), "task should be updated to ERROR");
-                                    checkpoint.flag();
-                                }));
-                    });
-                    checkpoint.flag();
-                }));
-
-        Function<Task<Payment>, Future<Integer>> taskProcessor = task -> {
-            log.info("Processing {}", task.getPayload());
-            Future<Integer> updateFuture = taskQueueService.withTaskQueueTxn(
-                    conn -> updatePayment(conn, payment),
-                    conn -> taskQueueService.finish(conn, task.getId()));
-
-            // simulate exception
-            String a = null;
-            a.length();
-
-            return updateFuture;
         };
 
         PollConfig<Payment> pollConfig = new PollConfig<>("Q1", 5, Duration.ofMinutes(10), taskProcessor, Payment.class);

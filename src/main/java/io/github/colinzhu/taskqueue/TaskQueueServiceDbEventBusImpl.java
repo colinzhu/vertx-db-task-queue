@@ -2,12 +2,10 @@ package io.github.colinzhu.taskqueue;
 
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
-import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.SqlConnection;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.util.function.Function;
 
 /**
  * QueueClient
@@ -23,26 +21,21 @@ class TaskQueueServiceDbEventBusImpl implements TaskQueueService {
     private final TaskQueueService dbImpl;
     private static TaskQueueService instance;
 
-    public static TaskQueueService getInstance(Vertx vertx, JDBCPool pool) {
+    public static TaskQueueService getInstance(Vertx vertx) {
         if (null == instance) {
-            instance = new TaskQueueServiceDbEventBusImpl(vertx, pool);
+            instance = new TaskQueueServiceDbEventBusImpl(vertx);
         }
         return instance;
     }
 
-    private TaskQueueServiceDbEventBusImpl(Vertx vertx, JDBCPool pool) {
+    private TaskQueueServiceDbEventBusImpl(Vertx vertx) {
         this.vertx = vertx;
-        this.dbImpl = TaskQueueServiceDbImpl.getInstance(pool);
+        this.dbImpl = TaskQueueServiceDbImpl.getInstance();
     }
 
     @Override
     public <T> Future<Task<String>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload) {
         throw new UnsupportedOperationException("For using event bus, please use method with `processDelay` parameter.");
-    }
-
-    @Override
-    public <T> Future<T> withTaskQueueTxn(Function<SqlConnection, Future<T>> function, Function<SqlConnection, Future<Integer>> taskFunction) {
-        return dbImpl.withTaskQueueTxn(function, taskFunction);
     }
 
     public <T> Future<Task<String>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
