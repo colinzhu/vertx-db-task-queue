@@ -18,6 +18,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.function.Function;
 
 import static org.slf4j.Logger.ROOT_LOGGER_NAME;
@@ -49,33 +50,47 @@ class TaskPollerTest {
     void tearDown() {
     }
 
-    @Test
+    @ParameterizedTest
     @DisplayName("Normal - within one transaction, business entity object updated, tasks finished (deleted)")
-    void testNormal(Vertx vertx, VertxTestContext testContext) {
-        Checkpoint checkpoint = testContext.checkpoint(3);
+    @CsvSource({"FINISH", "REENQUEUE"})
+    void testNormal(String afterProcessAction, Vertx vertx, VertxTestContext testContext) {
+        Checkpoint checkpoint = testContext.checkpoint(2);
         Payment payment = new Payment("CREATED", System.currentTimeMillis());
+        String queueName = "REENQUEUE".equals(afterProcessAction) ? "Q2-need-reenquueue" : "Q1-need-finish";
         savePayment(payment)
-                .compose(p -> pool.withTransaction(sqlConnection -> taskQueueService.enqueue(sqlConnection, "Q1", "ref1", p)))
-                .onComplete(testContext.succeeding(p -> checkpoint.flag()));
+                .compose(p -> pool.withTransaction(sqlConnection -> taskQueueService.enqueue(sqlConnection, queueName, "ref1", p)))
+                .onComplete(testContext.succeeding(task -> {
+                    vertx.setTimer(6000, id -> {
+                        // verify payment status
+                        retrievePayment(payment.getId()).onComplete(testContext.succeeding(res -> {
+                            Assertions.assertEquals("PROCESSED", res.getStatus(), "PAYMENT status should be changed");
+                            checkpoint.flag();
+                        }));
+
+                        // verify task
+                        retrieveTask(task.getId()).onComplete(testContext.succeeding(res -> {
+                            if ("REENQUEUE".equals(afterProcessAction)) {
+                                Assertions.assertTrue(List.of("CREATED","PROCESSING").contains(res.getString("STATUS")), "task should still ba available for next processing");
+                            } else {
+                                Assertions.assertNull(res, "task should be deleted");
+                            }
+                            checkpoint.flag();
+                        }));
+                    });
+                }));
 
         Function<Task<Payment>, Future<Integer>> taskProcessor = task -> {
             log.info("Processing {}", task.getPayload());
-            Future<Integer> updateFuture = pool.withTransaction(conn -> updatePayment(conn, payment).compose(updateCount -> taskQueueService.finish(conn, task.getId())));
-
-            // verify payment status
-            updateFuture.compose(updateCount -> pool.withConnection(conn -> retrievePayment(conn, payment.getId())))
-                    .onComplete(testContext.succeeding(res -> Assertions.assertEquals("PROCESSED", res.getStatus(), "PAYMENT status should be changed")))
-                    .onComplete(testContext.succeeding(res -> checkpoint.flag()));
-
-            // verify task
-            updateFuture.compose(updateCount -> pool.withConnection(conn -> retrieveTask(conn, task.getId())))
-                    .onComplete(testContext.succeeding(res -> Assertions.assertNull(res, "task should be deleted")))
-                    .onComplete(testContext.succeeding(res -> checkpoint.flag()));
-
-            return updateFuture;
+            return pool.withTransaction(conn -> updatePayment(conn, payment)
+                    .compose(updateCount -> {
+                        if ("REENQUEUE".equals(afterProcessAction)) {
+                            return taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5));
+                        }
+                        return taskQueueService.finish(conn, task.getId());
+                    }));
         };
 
-        PollConfig<Payment> pollConfig = new PollConfig<>("Q1", 5, Duration.ofMinutes(10), taskProcessor, Payment.class);
+        PollConfig<Payment> pollConfig = new PollConfig<>(queueName, 5, Duration.ofMinutes(10), taskProcessor, Payment.class);
         TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
     }
@@ -92,18 +107,16 @@ class TaskPollerTest {
                     // after 6 seconds
                     vertx.setTimer(6000, id -> {
                         // verify payment status
-                        pool.withConnection(conn -> retrievePayment(conn, payment.getId()))
-                                .onComplete(testContext.succeeding(p -> {
-                                    Assertions.assertEquals("CREATED", p.getStatus(), "PAYMENT status should be rolled back / no change");
-                                    checkpoint.flag();
-                                }));
+                        retrievePayment(payment.getId()).onComplete(testContext.succeeding(p -> {
+                            Assertions.assertEquals("CREATED", p.getStatus(), "PAYMENT status should be rolled back / no change");
+                            checkpoint.flag();
+                        }));
 
                         // verify task
-                        pool.withConnection(conn -> retrieveTask(conn, task.getId()))
-                                .onComplete(testContext.succeeding(row -> {
-                                    Assertions.assertEquals("ERROR", row.getString("STATUS"), "task should be updated to ERROR");
-                                    checkpoint.flag();
-                                }));
+                        retrieveTask(task.getId()).onComplete(testContext.succeeding(row -> {
+                            Assertions.assertEquals("ERROR", row.getString("STATUS"), "task should be updated to ERROR");
+                            checkpoint.flag();
+                        }));
                     });
                 }));
 
@@ -144,8 +157,8 @@ class TaskPollerTest {
                 .map(SqlResult::size);
     }
 
-    private Future<Payment> retrievePayment(SqlConnection sqlConnection, Long id) {
-        return sqlConnection.query("SELECT * FROM PAYMENT WHERE ID = " + id)
+    private Future<Payment> retrievePayment(Long id) {
+        return pool.query("SELECT * FROM PAYMENT WHERE ID = " + id)
                 .execute()
                 .map(rows -> {
                     RowIterator<Row> iterator = rows.iterator();
@@ -159,8 +172,8 @@ class TaskPollerTest {
                 });
     }
 
-    private Future<Row> retrieveTask(SqlConnection sqlConnection, Long id) {
-        return sqlConnection.query("SELECT * FROM TASKS WHERE ID = " + id)
+    private Future<Row> retrieveTask(Long id) {
+        return pool.query("SELECT * FROM TASKS WHERE ID = " + id)
                 .execute()
                 .map(rows -> {
                     RowIterator<Row> iterator = rows.iterator();

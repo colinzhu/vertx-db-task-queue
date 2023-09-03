@@ -24,12 +24,14 @@ class TaskRepo {
 
     private TaskRepo() {
     }
-    private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, PAYLOAD, REFERENCE_NUMBER, NEXT_PROCESS_TIME) VALUES (#{queueName}, 'NEW', #{payload}, #{refNumber}, #{nextProcessTime})";
+
+    private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, PAYLOAD, REFERENCE_NUMBER, NEXT_PROCESS_TIME) VALUES (#{queueName}, 'CREATED', #{payload}, #{refNumber}, #{nextProcessTime})";
     private static final String SQL_DELETE = "DELETE TASKS WHERE ID = #{id}";
     private static final String SQL_UPDATE_STATUS = "UPDATE TASKS SET STATUS = #{status} WHERE ID = #{id}";
 
-    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE STATUS IN ('NEW','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= CURRENT_TIMESTAMP() ORDER BY NEXT_PROCESS_TIME, ID FETCH FIRST #{batchSize} ROWS ONLY FOR UPDATE SKIP LOCKED";
-    private static final String SQL_UPDATE_NEXT_PROCESS = "UPDATE TASKS SET STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID IN ({idList})";
+    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= CURRENT_TIMESTAMP() ORDER BY NEXT_PROCESS_TIME, ID FETCH FIRST #{batchSize} ROWS ONLY FOR UPDATE SKIP LOCKED";
+    private static final String SQL_CHECK_OUT = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID IN ({idList})";
+    private static final String SQL_RE_ENQUEUE = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID = #{id}";
 
     Future<Task<String>> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
         return SqlTemplate.forUpdate(sqlConnection, SQL_INSERT)
@@ -59,9 +61,11 @@ class TaskRepo {
                 .onSuccess(sqlResult -> log.debug("[taskId:{}] task deleted. Time:{}ms", taskId, System.currentTimeMillis() - start))
                 .onFailure(err -> log.error("[taskId:{}] fail to delete task. Time:{}ms", taskId, System.currentTimeMillis() - start, err));
     }
+
     Future<Integer> updateStatusToError(SqlConnection sqlConnection, long taskId) {
         return updateStatus(sqlConnection, taskId, "ERROR");
     }
+
     private Future<Integer> updateStatus(SqlConnection sqlConnection, long taskId, String status) {
         long start = System.currentTimeMillis();
         return SqlTemplate.forUpdate(sqlConnection, SQL_UPDATE_STATUS)
@@ -81,7 +85,7 @@ class TaskRepo {
     Future<List<Task<String>>> checkout(SqlConnection sqlConnection, String queueName, int batchSize, Duration nextProcessDelay) {
         var taskList = selectTasks(sqlConnection, queueName, batchSize);
         return taskList
-                .compose(records -> updateNextProcessTime(sqlConnection, records.stream().map(Task::getId).collect(Collectors.toList()), nextProcessDelay))
+                .compose(records -> checkout(sqlConnection, records.stream().map(Task::getId).collect(Collectors.toList()), nextProcessDelay))
                 .map(records -> taskList.result())
                 .onFailure(err -> log.error("[{}] Failed to check out tasks.", queueName, err));
     }
@@ -103,14 +107,14 @@ class TaskRepo {
                 });
     }
 
-    Future<Integer> updateNextProcessTime(SqlConnection sqlConnection, List<Long> taskIdList, Duration nextProcessDelay) {
+    private Future<Integer> checkout(SqlConnection sqlConnection, List<Long> taskIdList, Duration nextProcessDelay) {
         long start = System.currentTimeMillis();
         Future<Integer> future;
         if (taskIdList.isEmpty()) {
             future = Future.succeededFuture(0);
         } else {
             String idValues = taskIdList.stream().map(String::valueOf).collect(Collectors.joining(","));
-            String sql = SQL_UPDATE_NEXT_PROCESS.replace("{idList}", idValues);
+            String sql = SQL_CHECK_OUT.replace("{idList}", idValues);
             ZonedDateTime newNextProcessTime = ZonedDateTime.now().plusSeconds(nextProcessDelay.getSeconds());
             future = SqlTemplate.forUpdate(sqlConnection, sql)
                     .execute(Map.of("newNextProcessTime", newNextProcessTime))
@@ -124,8 +128,25 @@ class TaskRepo {
                     });
         }
         return future
-                .onFailure(err -> log.error("{} updateNextProcessTime - failed, time:{}ms", taskIdList, System.currentTimeMillis() - start, err))
-                .onSuccess(updateCount -> log.debug("{} updateNextProcessTime - update count:{}, time:{}ms", taskIdList, updateCount, System.currentTimeMillis() - start));
+                .onFailure(err -> log.error("{} checkout - failed, time:{}ms", taskIdList, System.currentTimeMillis() - start, err))
+                .onSuccess(updateCount -> log.debug("{} checkout - update count:{}, time:{}ms", taskIdList, updateCount, System.currentTimeMillis() - start));
     }
 
+
+    Future<Integer> reenqueue(SqlConnection sqlConnection, Long taskId, Duration nextProcessDelay) {
+        long start = System.currentTimeMillis();
+        ZonedDateTime newNextProcessTime = ZonedDateTime.now().plusSeconds(nextProcessDelay.getSeconds());
+        return SqlTemplate.forUpdate(sqlConnection, SQL_RE_ENQUEUE)
+                .execute(Map.of("id", taskId, "newNextProcessTime", newNextProcessTime))
+                .map(SqlResult::rowCount)
+                .map(updateCount -> {
+                    if (0 == updateCount) {
+                        throw new IllegalStateException(String.format("[taskId:%s] reenqueue to [%s] count is 0. Expected: 1", taskId, newNextProcessTime));
+                    } else {
+                        return updateCount;
+                    }
+                })
+                .onSuccess(sqlResult -> log.debug("[taskId:{}] reenqueue to [{}]. Time:{}ms", taskId, newNextProcessTime, System.currentTimeMillis() - start))
+                .onFailure(err -> log.error("[taskId:{}] fail to reenqueue to [{}]. Time:{}ms", taskId, newNextProcessTime, System.currentTimeMillis() - start, err));
+    }
 }

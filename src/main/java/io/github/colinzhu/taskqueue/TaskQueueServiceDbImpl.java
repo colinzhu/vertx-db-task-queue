@@ -8,7 +8,6 @@ import io.vertx.sqlclient.SqlConnection;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.util.List;
 
 /**
  * QueueClient
@@ -53,6 +52,6 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
 
     @Override
     public Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay) {
-        return taskRepo.updateNextProcessTime(sqlConnection, List.of(taskId), delay);
+        return taskRepo.reenqueue(sqlConnection, taskId, delay);
     }
 }

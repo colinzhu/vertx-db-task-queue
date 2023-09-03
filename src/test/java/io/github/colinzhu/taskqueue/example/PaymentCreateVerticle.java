@@ -66,10 +66,14 @@ public class PaymentCreateVerticle extends AbstractVerticle {
 
     private Future<Payment> insertPayment(SqlConnection sqlConnection, Payment payment) {
         long start = System.currentTimeMillis();
-        return sqlConnection.preparedQuery("insert into PAYMENT (STATUS, CREATE_TIME) values (?, ?, ?)")
+        return sqlConnection.preparedQuery("insert into PAYMENT (STATUS, CREATE_TIME) values (?, ?)")
                 .execute(Tuple.of(payment.getStatus(), payment.getCreateTime()))
-                .onSuccess(rows -> log.debug("payment inserted, ID:{} time:{}ms", rows.property(JDBCPool.GENERATED_KEYS).getLong(0), System.currentTimeMillis() - start))
-                .map(result -> payment)
+                .map(rows -> {
+                    Long id = rows.property(JDBCPool.GENERATED_KEYS).getLong(0);
+                    payment.setId(id);
+                    return payment;
+                })
+                .onSuccess(rows -> log.debug("payment inserted, ID:{} time:{}ms", payment.getId(), System.currentTimeMillis() - start))
                 .onFailure(e -> log.error("error inserting", e));
     }
 

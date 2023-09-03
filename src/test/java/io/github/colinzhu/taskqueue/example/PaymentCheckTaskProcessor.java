@@ -11,7 +11,6 @@ import io.vertx.jdbcclient.JDBCPool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.Duration;
 import java.util.function.Function;
 import java.util.random.RandomGenerator;
 
@@ -33,8 +32,8 @@ public class PaymentCheckTaskProcessor implements Function<Task<Payment>, Future
                 promise.complete();
             });
             return promise.future()
-                    //.compose(res -> taskQueueService.finish(sqlConnection, task.getId()));
-                    .compose(res -> taskQueueService.reenqueue(sqlConnection, task.getId(), Duration.ofSeconds(10)));
+                    .compose(res -> taskQueueService.finish(sqlConnection, task.getId()));
+                    //.compose(res -> taskQueueService.reenqueue(sqlConnection, task.getId(), Duration.ofSeconds(10)));
                     // if finished, update the task within the same transaction
                     // if reenqueue, update the task within the same transaction
                     // if failure, in a separate transaction, mark the task as ERROR

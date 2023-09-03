@@ -35,6 +35,7 @@ public class TestHelper {
                 create table IF NOT EXISTS TASKS (
                     ID bigint auto_increment,
                     QUEUE_NAME varchar2(50) NOT NULL,
+                    ATTEMPT bigint DEFAULT 0,
                     STATUS varchar2(30),
                     PAYLOAD CLOB,
                     REFERENCE_NUMBER varchar(100),
