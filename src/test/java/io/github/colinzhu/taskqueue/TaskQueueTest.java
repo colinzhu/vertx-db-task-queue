@@ -124,7 +124,7 @@ class TaskQueueTest {
 
                         // verify task
                         retrieveTask(task.getId()).onComplete(testContext.succeeding(res -> {
-                            Assertions.assertTrue(List.of("CREATED").contains(res.getString("STATUS")), "task should not be checked-out");
+                            Assertions.assertEquals("CREATED", res.getString("STATUS"), "task should not be checked-out");
                             checkpoint.flag();
                         }));
                     });
