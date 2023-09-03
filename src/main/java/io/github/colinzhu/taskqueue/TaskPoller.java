@@ -63,11 +63,11 @@ public class TaskPoller<T> {
                 });
     }
 
-    private Future<List<TaskEntity<String>>> checkOutTasks(SqlConnection sqlConnection) {
+    private Future<List<TaskEntity>> checkOutTasks(SqlConnection sqlConnection) {
         return taskRepo.checkout(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay());
     }
 
-    private void handleFetchedTasks(List<TaskEntity<String>> batch, String pollId, long start) {
+    private void handleFetchedTasks(List<TaskEntity> batch, String pollId, long start) {
         List<Long> taskIdList = batch.stream().map(TaskEntity::getId).collect(Collectors.toList());
         List<String> refNumberList = batch.stream().map(TaskEntity::getReferenceNumber).collect(Collectors.toList());
         String logTmpl = "[%s] size:%d, taskIdList:%s, refList:%s".formatted(pollId, batch.size(), taskIdList, refNumberList);
@@ -97,25 +97,25 @@ public class TaskPoller<T> {
         }
     }
 
-    private Task<T> convertTask(TaskEntity<String> stringTask) {
+    private Task<T> convertTask(TaskEntity taskEntity) {
         try {
             return new Task<>(
-                    stringTask.getId(),
-                    objectMapper.readValue(stringTask.getPayload(), config.getPayloadClass())
+                    taskEntity.getId(),
+                    objectMapper.readValue(taskEntity.getPayload(), config.getPayloadClass())
             );
         } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to deserialize JSON string to object. JSON: " + stringTask.getPayload(), e);
+            throw new RuntimeException("Failed to deserialize JSON string to object. JSON: " + taskEntity.getPayload(), e);
         }
     }
 
-    private Future<Integer> processTask(TaskEntity<String> stringTask) {
+    private Future<Integer> processTask(TaskEntity taskEntity) {
         return Future.succeededFuture()
-                .map(res -> convertTask(stringTask))
+                .map(res -> convertTask(taskEntity))
                 .compose(tTask -> config.getTaskProcessor().apply(tTask))
                 .recover(err -> {
-                    log.error("[{}][taskId:{}] Error when try to process the task.", config.getQueueName(), stringTask.getId(), err);
+                    log.error("[{}][taskId:{}] Error when try to process the task.", config.getQueueName(), taskEntity.getId(), err);
                     // for recover to mark the task as ERROR, it needs to be in a separate connection
-                    return pool.withConnection(conn -> TaskQueueService.taskQueue().fail(conn, stringTask.getId()));
+                    return pool.withConnection(conn -> TaskQueueService.taskQueue().fail(conn, taskEntity.getId()));
                 });
     }
 

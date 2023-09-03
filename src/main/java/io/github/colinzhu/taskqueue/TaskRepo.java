@@ -30,7 +30,7 @@ class TaskRepo {
     private static final String SQL_CHECK_OUT = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID IN ({idList})";
     private static final String SQL_RE_ENQUEUE = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID = #{id}";
 
-    Future<TaskEntity<String>> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
+    Future<TaskEntity> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
         ZonedDateTime now = ZonedDateTime.now();
         ZonedDateTime nextProcessTime = now.plus(processDelay);
         return SqlTemplate.forUpdate(sqlConnection, SQL_INSERT)
@@ -39,7 +39,7 @@ class TaskRepo {
                         "payload", payload,
                         "refNumber", refNumber,
                         "nextProcessTime", nextProcessTime))
-                .map(sqlResult -> new TaskEntity<>(
+                .map(sqlResult -> new TaskEntity(
                         sqlResult.property(JDBCPool.GENERATED_KEYS).getLong(0),
                         refNumber,
                         queueName,
@@ -90,7 +90,7 @@ class TaskRepo {
                 .onFailure(err -> log.error("[taskId:{}] fail to update status to [{}]. Time:{}ms", taskId, status, System.currentTimeMillis() - start, err));
     }
 
-    Future<List<TaskEntity<String>>> checkout(SqlConnection sqlConnection, String queueName, int batchSize, Duration nextProcessDelay) {
+    Future<List<TaskEntity>> checkout(SqlConnection sqlConnection, String queueName, int batchSize, Duration nextProcessDelay) {
         var taskList = selectTasks(sqlConnection, queueName, batchSize);
         return taskList
                 .compose(records -> checkout(sqlConnection, records.stream().map(TaskEntity::getId).collect(Collectors.toList()), nextProcessDelay))
@@ -99,14 +99,14 @@ class TaskRepo {
     }
 
 
-    private Future<List<TaskEntity<String>>> selectTasks(SqlConnection sqlConnection, String queueName, int batchSize) {
+    private Future<List<TaskEntity>> selectTasks(SqlConnection sqlConnection, String queueName, int batchSize) {
         long start = System.currentTimeMillis();
         return SqlTemplate.forQuery(sqlConnection, SQL_SELECT_FOR_UPDATE)
                 .execute(Map.of("queueName", queueName, "batchSize", batchSize))
                 .onFailure(err -> log.error("[{}] selectTasks - failed, time:{}ms", queueName, System.currentTimeMillis() - start, err))
                 .map(rows -> {
-                    List<TaskEntity<String>> records = new ArrayList<>();
-                    rows.forEach(row -> records.add(new TaskEntity<>(
+                    List<TaskEntity> records = new ArrayList<>();
+                    rows.forEach(row -> records.add(new TaskEntity(
                             row.getLong("ID"),
                             row.getString("REFERENCE_NUMBER"),
                             row.getString("QUEUE_NAME"),

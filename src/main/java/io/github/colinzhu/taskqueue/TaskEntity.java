@@ -8,7 +8,7 @@ import java.time.ZonedDateTime;
 @AllArgsConstructor
 @ToString
 @Data
-class TaskEntity<T> implements Serializable {
+class TaskEntity implements Serializable {
     private long id;
     private String referenceNumber;
     private String queueName;
@@ -17,5 +17,5 @@ class TaskEntity<T> implements Serializable {
     private ZonedDateTime createTime;
     private ZonedDateTime nextProcessTime;
     private ZonedDateTime lastUpdateTime;
-    private T payload;
+    private String payload;
 }
