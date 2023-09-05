@@ -6,17 +6,20 @@ import lombok.*;
 import java.time.Duration;
 import java.util.function.Function;
 
-@Data
+//@Data
+@Value
+@Builder
+@RequiredArgsConstructor
 public class PollConfig<T> {
-    private final String queueName;
-    private final int batchSize;
-    private final Duration nextProcessDelay;
-    private final Function<Task<T>, Future<Integer>> taskProcessor;
-    private final Class<T> payloadClass;
+    String queueName;
+    int batchSize;
+    Duration nextProcessDelay;
+    Function<Task<T>, Future<Integer>> taskProcessor;
+    Class<T> payloadClass;
 
-    private Duration noTaskPollInterval = Duration.ofSeconds(5);
-    private Duration hasTaskPollInterval = Duration.ofMillis(1);
-    private Duration errorProcessTasksInterval = Duration.ofSeconds(5);
-    private Duration errorCheckOutInterval = Duration.ofSeconds(60);
-    private boolean pollNextBatch = true;
+    @Builder.Default Duration noTaskPollInterval = Duration.ofSeconds(5);
+    @Builder.Default Duration hasTaskPollInterval = Duration.ofMillis(1);
+    @Builder.Default Duration errorProcessTasksInterval = Duration.ofSeconds(5);
+    @Builder.Default Duration errorCheckOutInterval = Duration.ofSeconds(60);
+    @Builder.Default boolean pollNextBatch = true;
 }

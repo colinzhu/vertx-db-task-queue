@@ -90,7 +90,13 @@ class TaskQueueTest {
                     }));
         };
 
-        PollConfig<Payment> pollConfig = new PollConfig<>(queueName, 5, Duration.ofMinutes(10), taskProcessor, Payment.class);
+//        PollConfig<Payment> pollConfig = new PollConfig<>(queueName, 5, Duration.ofMinutes(10), taskProcessor, Payment.class);
+        PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
+                .queueName(queueName)
+                .batchSize(5)
+                .nextProcessDelay(Duration.ofMinutes(10))
+                .taskProcessor(taskProcessor)
+                .payloadClass(Payment.class).build();
         TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
     }

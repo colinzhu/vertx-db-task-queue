@@ -17,9 +17,11 @@ import java.util.stream.Collectors;
 @Slf4j
 class TaskEntityRepo {
     private static final TaskEntityRepo instance = new TaskEntityRepo();
+
     public static TaskEntityRepo getInstance() {
         return instance;
     }
+
     private TaskEntityRepo() {
     }
 
@@ -106,17 +108,18 @@ class TaskEntityRepo {
                 .onFailure(err -> log.error("[{}] selectTasks - failed, time:{}ms", queueName, System.currentTimeMillis() - start, err))
                 .map(rows -> {
                     List<TaskEntity> records = new ArrayList<>();
-                    rows.forEach(row -> records.add(new TaskEntity(
-                            row.getLong("ID"),
-                            row.getString("REFERENCE_NUMBER"),
-                            row.getString("QUEUE_NAME"),
-                            row.getString("STATUS"),
-                            row.getLong("ATTEMPT"),
-                            row.getOffsetDateTime("CREATE_TIME").toZonedDateTime(),
-                            row.getOffsetDateTime("NEXT_PROCESS_TIME").toZonedDateTime(),
-                            row.getOffsetDateTime("LAST_UPDATE_TIME").toZonedDateTime(),
-                            row.getString("PAYLOAD")
-                    )));
+                    rows.forEach(row -> records.add(TaskEntity.builder()
+                            .id(row.getLong("ID"))
+                            .referenceNumber(row.getString("REFERENCE_NUMBER"))
+                            .queueName(row.getString("REFERENCE_NUMBER"))
+                            .status(row.getString("STATUS"))
+                            .attempt(row.getLong("ATTEMPT"))
+                            .createTime(row.getOffsetDateTime("CREATE_TIME").toZonedDateTime())
+                            .nextProcessTime(row.getOffsetDateTime("NEXT_PROCESS_TIME").toZonedDateTime())
+                            .lastUpdateTime(row.getOffsetDateTime("LAST_UPDATE_TIME").toZonedDateTime())
+                            .payload(row.getString("PAYLOAD"))
+                            .build()
+                    ));
                     log.debug("[{}] selectTasks - select count (for update):{}, time:{}ms", queueName, records.size(), System.currentTimeMillis() - start);
                     return records;
                 });
