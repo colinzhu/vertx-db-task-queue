@@ -81,16 +81,16 @@ class TaskQueueTest {
 
         Function<Task<Payment>, Future<Integer>> taskProcessor = task -> {
             log.info("Processing {}", task.getPayload());
-            return pool.withTransaction(conn -> updatePayment(conn, task.getPayload())
-                    .compose(updateCount -> {
-                        if ("REENQUEUE".equals(afterProcessAction)) {
-                            return taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5));
-                        }
-                        return taskQueueService.finish(conn, task.getId());
-                    }));
+            Function<SqlConnection, Future<?>> mainFunction = conn -> updatePayment(conn, task.getPayload());
+            Function<SqlConnection, Future<Integer>> function;
+            if ("REENQUEUE".equals(afterProcessAction)) {
+                function = taskQueueService.reenqueue(mainFunction, task.getId(), Duration.ofSeconds(5));
+            } else {
+                function = taskQueueService.finish(mainFunction, task.getId());
+            }
+            return pool.withTransaction(function);
         };
 
-//        PollConfig<Payment> pollConfig = new PollConfig<>(queueName, 5, Duration.ofMinutes(10), taskProcessor, Payment.class);
         PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
                 .queueName(queueName)
                 .batchSize(5)
@@ -112,7 +112,8 @@ class TaskQueueTest {
                     .compose(updateCount -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5))));
         };
 
-        PollConfig<Payment> pollConfig = new PollConfig<>("Q3-poller-stoppped", 5, Duration.ofMinutes(10), taskProcessor, Payment.class);
+        PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
+                .queueName("Q3-poller-stoppped").batchSize(5).nextProcessDelay(Duration.ofMinutes(10)).taskProcessor(taskProcessor).payloadClass(Payment.class).build();
         TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
         poller.stop();
@@ -178,7 +179,8 @@ class TaskQueueTest {
             );
         };
 
-        PollConfig<Payment> pollConfig = new PollConfig<>("Q1", 5, Duration.ofMinutes(10), taskProcessor, Payment.class);
+        PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
+                .queueName("Q1").batchSize(5).nextProcessDelay(Duration.ofMinutes(10)).taskProcessor(taskProcessor).payloadClass(Payment.class).build();
         TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
     }

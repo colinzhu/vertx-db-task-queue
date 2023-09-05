@@ -6,10 +6,8 @@ import lombok.*;
 import java.time.Duration;
 import java.util.function.Function;
 
-//@Data
-@Value
 @Builder
-@RequiredArgsConstructor
+@Value
 public class PollConfig<T> {
     String queueName;
     int batchSize;

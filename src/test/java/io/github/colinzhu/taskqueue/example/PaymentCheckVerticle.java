@@ -22,7 +22,7 @@ public class PaymentCheckVerticle extends AbstractVerticle {
         PaymentCheckTaskProcessor taskProcessor = new PaymentCheckTaskProcessor(vertx, pool);
 
         // register taskProcessor to poller
-        PollConfig<Payment> pollConfig = new PollConfig<>("payment.check", 5, Duration.ofMinutes(10), taskProcessor, Payment.class);
+        PollConfig<Payment> pollConfig = PollConfig.<Payment>builder().queueName("payment.check").batchSize(5).nextProcessDelay(Duration.ofMinutes(10)).taskProcessor(taskProcessor).payloadClass(Payment.class).build();
         poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
 
