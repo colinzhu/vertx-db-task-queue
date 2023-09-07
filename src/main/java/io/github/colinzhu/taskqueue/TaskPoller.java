@@ -21,7 +21,7 @@ public class TaskPoller<T> {
     private final JDBCPool pool;
     private boolean isToStop = false;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
-
+    private final TaskQueueService taskQueueService = TaskQueueService.taskQueue();
     public TaskPoller(Vertx vertx, JDBCPool pool, PollConfig<T> config) {
         this.vertx = vertx;
         this.config = config;
@@ -115,7 +115,7 @@ public class TaskPoller<T> {
                 .recover(err -> {
                     log.error("[{}][taskId:{}] Error when try to process the task. Mark it as ERROR.", config.getQueueName(), taskEntity.getId(), err);
                     // for recover to mark the task as ERROR, it needs to be in a separate connection
-                    return pool.withConnection(conn -> TaskQueueService.taskQueue().fail(conn, taskEntity.getId()));
+                    return pool.withConnection(conn -> ((TaskQueueServiceDbImpl)taskQueueService).fail(conn, taskEntity.getId()));
                 });
     }
 

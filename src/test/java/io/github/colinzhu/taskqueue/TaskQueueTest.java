@@ -57,8 +57,7 @@ class TaskQueueTest {
         Checkpoint checkpoint = testContext.checkpoint(2);
         Payment payment = new Payment("CREATED", System.currentTimeMillis());
         String queueName = "REENQUEUE".equals(afterProcessAction) ? "Q2-need-reenquueue" : "Q1-need-finish";
-        savePayment(payment)
-                .compose(p -> pool.withTransaction(sqlConnection -> taskQueueService.enqueue(sqlConnection, queueName, "ref1", p)))
+        pool.withTransaction(taskQueueService.enqueue(sqlConnection -> savePayment(sqlConnection, payment), queueName, pymt -> "ref1"))
                 .onComplete(testContext.succeeding(task -> {
                     vertx.setTimer(6000, id -> {
                         // verify payment status
@@ -108,8 +107,7 @@ class TaskQueueTest {
 
         Function<Task<Payment>, Future<Integer>> taskProcessor = task -> {
             log.info("Processing {}", task.getPayload());
-            return pool.withTransaction(conn -> updatePayment(conn, task.getPayload())
-                    .compose(updateCount -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5))));
+            return pool.withTransaction(taskQueueService.reenqueue(conn -> updatePayment(conn, task.getPayload()), task.getId(), Duration.ofSeconds(5)));
         };
 
         PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
@@ -119,8 +117,7 @@ class TaskQueueTest {
         poller.stop();
 
         Payment payment = new Payment("CREATED", System.currentTimeMillis());
-        savePayment(payment)
-                .compose(p -> pool.withTransaction(sqlConnection -> taskQueueService.enqueue(sqlConnection, "Q3-poller-stoppped", "ref1", p)))
+        pool.withTransaction(taskQueueService.enqueue(sqlConnection -> savePayment(sqlConnection, payment), "Q3-poller-stoppped", pymt -> "ref1"))
                 .onComplete(testContext.succeeding(task -> {
                     vertx.setTimer(6000, id -> {
                         // verify payment status
@@ -144,8 +141,7 @@ class TaskQueueTest {
     void testTaskProcessingError(String errLocation, Vertx vertx, VertxTestContext testContext) {
         Checkpoint checkpoint = testContext.checkpoint(2);
         Payment payment = new Payment("CREATED", System.currentTimeMillis());
-        savePayment(payment)
-                .compose(p -> pool.withTransaction(sqlConnection -> taskQueueService.enqueue(sqlConnection, "Q1", "ref1", p)))
+        pool.withTransaction(taskQueueService.enqueue(sqlConnection -> savePayment(sqlConnection, payment), "Q1", pymt -> "ref1"))
                 .onComplete(testContext.succeeding(task -> {
                     // after 6 seconds
                     vertx.setTimer(6000, id -> {
@@ -168,15 +164,14 @@ class TaskQueueTest {
             if ("ERR_BEFORE_TXN".equals(errLocation)) {
                 throw new RuntimeException("simulate exception before transaction");
             }
-            return pool.withTransaction(conn -> updatePayment(conn, payment)
+            Function<SqlConnection, Future<?>> updatePaymentFunc = conn -> updatePayment(conn, payment)
                     .map(updateCount -> {
                         if ("ERR_IN_TXN".equals(errLocation)) {
                             throw new RuntimeException("simulate exception within transaction");
                         }
                         return updateCount;
-                    })
-                    .compose(updateCount -> taskQueueService.finish(conn, task.getId()))
-            );
+                    });
+            return pool.withTransaction(taskQueueService.finish(updatePaymentFunc, task.getId()));
         };
 
         PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
@@ -185,8 +180,8 @@ class TaskQueueTest {
         poller.start();
     }
 
-    private Future<Payment> savePayment(Payment payment) {
-        return pool.preparedQuery("insert into PAYMENT (STATUS, CREATE_TIME) values (?, ?)")
+    private Future<Payment> savePayment(SqlConnection sqlConnection, Payment payment) {
+        return sqlConnection.preparedQuery("insert into PAYMENT (STATUS, CREATE_TIME) values (?, ?)")
                 .execute(Tuple.of(payment.getStatus(), payment.getCreateTime()))
                 .map(rows -> {
                     Long id = rows.property(JDBCPool.GENERATED_KEYS).getLong(0);

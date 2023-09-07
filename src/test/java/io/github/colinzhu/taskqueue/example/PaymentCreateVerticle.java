@@ -28,12 +28,12 @@ public class PaymentCreateVerticle extends AbstractVerticle {
     }
 
     private void startHttpServer() {
-        int port = 8081;
         HttpServer server = vertx.createHttpServer();
         Router router = Router.router(vertx);
         router.route("/create/:count").handler(this::handleRouting);
-        server.requestHandler(router).listen(port)
-                .onSuccess(ar -> log.info("create server started. http://localhost:{}/create/1", port));
+        server.requestHandler(router).listen(0)
+                .onSuccess(httpServer -> log.info("payment create server started. http://localhost:{}/create/1", httpServer.actualPort()))
+                .onFailure(err -> log.error("failed to start payment create server.", err));
     }
 
     private void handleRouting(RoutingContext routingContext) {
@@ -49,20 +49,17 @@ public class PaymentCreateVerticle extends AbstractVerticle {
         for (int i = 0; i < count; i++) {
             Payment p = new Payment("CREATED", System.currentTimeMillis());
             final int i2 = i;
-            futures.add(pool.withTransaction(sqlConnection -> insertPaymentAndTask(i2, p, sqlConnection)));
+            futures.add(
+                    pool.withTransaction(TaskQueueService.taskQueue().enqueue(sqlConnection -> insertPayment(sqlConnection, p), "payment.check", payment -> p.getId().toString()))
+                            .onSuccess(event -> log.debug("#{} payment and task created, time: {}ms", i2, System.currentTimeMillis() - start))
+                            .onFailure(e -> log.error("error creating payment / task", e))
+            );
         }
         Future.join(futures)
                 .onSuccess(res -> routingContext.response().end(count + " items created, time: " + (System.currentTimeMillis() - start) + "ms"))
                 .onFailure(res -> routingContext.response().end("fail to create items"));
     }
 
-    private Future<?> insertPaymentAndTask(int number, Payment p, SqlConnection sqlConnection) {
-        long start = System.currentTimeMillis();
-        return insertPayment(sqlConnection, p)
-                .compose(payment -> TaskQueueService.taskQueue().enqueue(sqlConnection, "payment.check", payment.getId().toString(), payment))
-                .onSuccess(event -> log.debug("#{} payment and task created, time: {}ms", number, System.currentTimeMillis() - start))
-                .onFailure(e -> log.error("error creating payment / task", e));
-    }
 
     private Future<Payment> insertPayment(SqlConnection sqlConnection, Payment payment) {
         long start = System.currentTimeMillis();
