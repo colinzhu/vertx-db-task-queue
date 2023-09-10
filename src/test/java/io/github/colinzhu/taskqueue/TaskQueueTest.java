@@ -80,7 +80,7 @@ class TaskQueueTest {
 
         Function<Task<Payment>, Future<Integer>> taskProcessor = task -> {
             log.info("Processing {}", task.getPayload());
-            Function<SqlConnection, Future<?>> mainFunction = conn -> updatePayment(conn, task.getPayload());
+            Function<SqlConnection, Future<Integer>> mainFunction = conn -> updatePayment(conn, task.getPayload());
             Function<SqlConnection, Future<Integer>> function;
             if ("REENQUEUE".equals(afterProcessAction)) {
                 function = taskQueueService.reenqueue(mainFunction, task.getId(), Duration.ofSeconds(5));
@@ -164,7 +164,7 @@ class TaskQueueTest {
             if ("ERR_BEFORE_TXN".equals(errLocation)) {
                 throw new RuntimeException("simulate exception before transaction");
             }
-            Function<SqlConnection, Future<?>> updatePaymentFunc = conn -> updatePayment(conn, payment)
+            Function<SqlConnection, Future<Integer>> updatePaymentFunc = conn -> updatePayment(conn, payment)
                     .map(updateCount -> {
                         if ("ERR_IN_TXN".equals(errLocation)) {
                             throw new RuntimeException("simulate exception within transaction");

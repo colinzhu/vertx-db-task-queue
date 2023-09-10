@@ -1,5 +1,7 @@
 package io.github.colinzhu.taskqueue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.sqlclient.SqlConnection;
@@ -19,17 +21,18 @@ import java.util.function.Function;
 @Slf4j
 class TaskQueueServiceDbEventBusImpl extends TaskQueueServiceDbImpl{
     private final Vertx vertx;
-    private static TaskQueueService instance;
+    private static TaskQueueServiceDbEventBusImpl instance;
 
-    public static TaskQueueService getInstance(Vertx vertx) {
+    static TaskQueueServiceDbEventBusImpl getInstance(Vertx vertx) {
         if (null == instance) {
-            instance = new TaskQueueServiceDbEventBusImpl(vertx);
+            instance = new TaskQueueServiceDbEventBusImpl(TaskEntityRepo.getInstance(),
+                    new ObjectMapper().registerModule(new JavaTimeModule()), vertx);
         }
         return instance;
     }
 
-    private TaskQueueServiceDbEventBusImpl(Vertx vertx) {
-        super();
+    private TaskQueueServiceDbEventBusImpl(TaskEntityRepo taskEntityRepo, ObjectMapper objectMapper, Vertx vertx) {
+        super(taskEntityRepo, objectMapper);
         this.vertx = vertx;
     }
 

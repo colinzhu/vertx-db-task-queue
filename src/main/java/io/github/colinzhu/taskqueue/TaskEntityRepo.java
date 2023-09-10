@@ -5,6 +5,8 @@ import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.SqlConnection;
 import io.vertx.sqlclient.SqlResult;
 import io.vertx.sqlclient.templates.SqlTemplate;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -15,14 +17,12 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 class TaskEntityRepo {
     private static final TaskEntityRepo instance = new TaskEntityRepo();
 
-    public static TaskEntityRepo getInstance() {
+    static TaskEntityRepo getInstance() {
         return instance;
-    }
-
-    private TaskEntityRepo() {
     }
 
     private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, PAYLOAD, REFERENCE_NUMBER, NEXT_PROCESS_TIME) VALUES (#{queueName}, 'CREATED', #{payload}, #{refNumber}, #{nextProcessTime})";

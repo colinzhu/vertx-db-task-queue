@@ -43,7 +43,7 @@ public interface TaskQueueService {
      * @param taskId the task ID
      * @return function which invokes the main function, and then finish the task (remove from task queue)
      */
-    Function<SqlConnection, Future<Integer>> finish(Function<SqlConnection, Future<?>> function, long taskId);
+    <T> Function<SqlConnection, Future<T>> finish(Function<SqlConnection, Future<T>> function, long taskId);
 
     /**
      * Accept a main function, append the logic to re-put the task into the queue (update task process delay time). The main function and task handling logic will be in the same transaction.
@@ -52,5 +52,5 @@ public interface TaskQueueService {
      * @param delay process delay time
      * @return function which invokes the main function, and then create re-put the task into task queue (update task process delay time)
      */
-    Function<SqlConnection, Future<Integer>> reenqueue(Function<SqlConnection, Future<?>> function, long taskId, Duration delay);
+    <T> Function<SqlConnection, Future<T>> reenqueue(Function<SqlConnection, Future<T>> function, long taskId, Duration delay);
 }

@@ -1,10 +1,10 @@
 package io.github.colinzhu.taskqueue;
 
-import lombok.Data;
+import lombok.Value;
 
 import java.io.Serializable;
-@Data
+@Value
 public class Task<T> implements Serializable {
-    private final long id;
-    private final T payload;
+    long id;
+    T payload;
 }
