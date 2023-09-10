@@ -7,6 +7,8 @@ import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.SqlConnection;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -14,19 +16,19 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class TaskPoller<T> {
     private final Vertx vertx;
+    private final JDBCPool pool;
     private final PollConfig<T> config;
     private final TaskEntityRepo taskEntityRepo;
-    private final JDBCPool pool;
+    private final TaskQueueService taskQueueService;
+    private final ObjectMapper objectMapper;
     private boolean isToStop = false;
-    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
-    private final TaskQueueService taskQueueService = TaskQueueService.taskQueue();
+
     public TaskPoller(Vertx vertx, JDBCPool pool, PollConfig<T> config) {
-        this.vertx = vertx;
-        this.config = config;
-        this.pool = pool;
-        this.taskEntityRepo = TaskEntityRepo.getInstance();
+        this(vertx, pool, config, TaskEntityRepo.getInstance(), TaskQueueService.taskQueue(),
+                new ObjectMapper().registerModule(new JavaTimeModule()));
         log.info("Poller instance[{}] created: {}", this.hashCode(), config);
     }
 

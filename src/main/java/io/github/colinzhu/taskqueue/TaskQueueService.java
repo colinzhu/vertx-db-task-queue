@@ -7,6 +7,14 @@ import io.vertx.sqlclient.SqlConnection;
 import java.time.Duration;
 import java.util.function.Function;
 
+/**
+ * <pre>
+ * Task Queue Service to:
+ * 1. enqueue - put a task into a queue
+ * 2. finish - remove the task from the queue
+ * 3. reenqueue - put the task back to the queue with a process delay time
+ * </pre>
+ */
 public interface TaskQueueService {
     static TaskQueueService taskQueue() {
         return TaskQueueServiceDbImpl.getInstance();
