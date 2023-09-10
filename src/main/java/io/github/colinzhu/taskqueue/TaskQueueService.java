@@ -22,9 +22,16 @@ public interface TaskQueueService {
     static TaskQueueService taskQueue(Vertx vertx) {
         return TaskQueueServiceDbEventBusImpl.getInstance(vertx);
     }
-    default  <T> Function<SqlConnection, Future<Task<T>>> enqueue(Function<SqlConnection, Future<T>> function, String queueName, Function<T, String> refExtractor) {
-        return enqueue(function, queueName, refExtractor, Duration.ZERO);
-    }
+
+    /**
+     * Accept a main function, append the logic to create a task into task queue. The main function and task handling logic will be in the same transaction.
+     * @param function the main function to return Future of task payload
+     * @param queueName queue name
+     * @param refExtractor function to extract reference number from task payload
+     * @return function which invokes the main function, and then create a task into task queue
+     * @param <T> task payload type
+     */
+     <T> Function<SqlConnection, Future<Task<T>>> enqueue(Function<SqlConnection, Future<T>> function, String queueName, Function<T, String> refExtractor);
 
     /**
      * Accept a main function, append the logic to create a task into task queue. The main function and task handling logic will be in the same transaction.

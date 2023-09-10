@@ -23,6 +23,10 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
     static TaskQueueServiceDbImpl getInstance() {
         return instance;
     }
+    @Override
+    public <T> Function<SqlConnection, Future<Task<T>>> enqueue(Function<SqlConnection, Future<T>> function, String queueName, Function<T, String> refExtractor) {
+        return enqueue(function, queueName, refExtractor, Duration.ZERO);
+    }
 
     @Override
     public <T> Function<SqlConnection, Future<Task<T>>> enqueue(Function<SqlConnection, Future<T>> function, String queueName, Function<T, String> refExtractor, Duration processDelay) {
