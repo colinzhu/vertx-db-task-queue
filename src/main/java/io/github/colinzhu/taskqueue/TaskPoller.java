@@ -26,7 +26,7 @@ public class TaskPoller<T> {
     private final TaskQueueServiceDbImpl taskQueueServiceDb;
     private final ObjectMapper objectMapper;
     private boolean isToStop = false;
-    private boolean isStopped = false;
+    private boolean isStopped = true; // default is stopped, until start() is invoked
 
     public TaskPoller(Vertx vertx, JDBCPool pool, PollConfig<T> config) {
         this(vertx, pool, config, TaskEntityRepo.getInstance(), TaskQueueServiceDbImpl.getInstance(),
@@ -42,15 +42,21 @@ public class TaskPoller<T> {
 
     public Future<Void> stop() {
         isToStop = true;
+        log.info("stop triggered");
         Promise<Void> promise = Promise.promise();
-        vertx.setPeriodic(1000, id -> {
-            log.info("stopping");
-            if (isStopped) {
-                log.info("stopped");
-                promise.complete();
-                vertx.cancelTimer(id);
-            }
-        });
+        if (isStopped) {
+            log.info("stopped");
+            promise.complete();
+        } else {
+            vertx.setPeriodic(1000, id -> {
+                log.info("stopping, checking status");
+                if (isStopped) {
+                    log.info("stopped");
+                    promise.complete();
+                    vertx.cancelTimer(id);
+                }
+            });
+        }
         return promise.future();
     }
 
@@ -112,6 +118,7 @@ public class TaskPoller<T> {
             vertx.setTimer(delay.toMillis(), id -> fetchBatchAndProcess());
         } else {
             log.info("[{}] isPollNextBatch=false, no more polling", config.getQueueName());
+            isStopped = true;
         }
     }
 

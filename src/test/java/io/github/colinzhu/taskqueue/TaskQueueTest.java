@@ -34,7 +34,7 @@ class TaskQueueTest {
         setLogLevel(ROOT_LOGGER_NAME, Level.INFO);
         setLogLevel("com.mchange.v2.resourcepool.BasicResourcePool", Level.INFO);
         setLogLevel("io.github.colinzhu.taskqueue", Level.DEBUG);
-        setLogLevel("io.github.colinzhu.taskqueue.TaskRepo", Level.DEBUG);
+        setLogLevel("io.github.colinzhu.taskqueue.TaskEntityRepo", Level.DEBUG);
 
         pool = TestHelper.getJdbcPool(vertx);
         taskQueueService = TaskQueueService.taskQueue();
