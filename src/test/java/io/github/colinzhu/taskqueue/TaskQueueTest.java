@@ -111,13 +111,13 @@ class TaskQueueTest {
         };
 
         PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
-                .queueName("Q3-poller-stoppped").batchSize(5).nextProcessDelay(Duration.ofMinutes(10)).taskProcessor(taskProcessor).payloadClass(Payment.class).build();
+                .queueName("Q3-poller-stopped").batchSize(5).nextProcessDelay(Duration.ofMinutes(10)).taskProcessor(taskProcessor).payloadClass(Payment.class).build();
         TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
         vertx.setTimer(1000, id -> poller.stop().onSuccess(v -> log.info("poller stopped.")).onSuccess(v -> checkpoint.flag()));
 
         Payment payment = new Payment("CREATED", System.currentTimeMillis());
-        pool.withTransaction(taskQueueService.enqueue(sqlConnection -> savePayment(sqlConnection, payment), "Q3-poller-stoppped", pymt -> "ref1"))
+        pool.withTransaction(taskQueueService.enqueue(sqlConnection -> savePayment(sqlConnection, payment), "Q3-poller-stopped", pymt -> "ref1"))
                 .onComplete(testContext.succeeding(task -> {
                     vertx.setTimer(6000, id -> {
                         // verify payment status

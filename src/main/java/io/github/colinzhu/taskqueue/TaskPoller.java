@@ -25,13 +25,15 @@ public class TaskPoller<T> {
     private final TaskEntityRepo taskEntityRepo;
     private final TaskQueueServiceDbImpl taskQueueServiceDb;
     private final ObjectMapper objectMapper;
+    private String pollerId;
     private boolean isToStop = false;
     private boolean isStopped = true; // default is stopped, until start() is invoked
 
     public TaskPoller(Vertx vertx, JDBCPool pool, PollConfig<T> config) {
         this(vertx, pool, config, TaskEntityRepo.getInstance(), TaskQueueServiceDbImpl.getInstance(),
                 new ObjectMapper().registerModule(new JavaTimeModule()));
-        log.info("Poller instance[{}] created: {}", this.hashCode(), config);
+        pollerId = "poller-" + config.getQueueName() + "-" + this.hashCode();
+        log.info("{} created: {}", pollerId, config);
     }
 
     public void start() {
@@ -42,16 +44,16 @@ public class TaskPoller<T> {
 
     public Future<Void> stop() {
         isToStop = true;
-        log.info("stop triggered");
+        log.info("{} stop triggered", pollerId);
         Promise<Void> promise = Promise.promise();
         if (isStopped) {
-            log.info("stopped");
+            log.info("{} stopped", pollerId);
             promise.complete();
         } else {
             vertx.setPeriodic(1000, id -> {
-                log.info("stopping, checking status");
+                log.info("{} stopping, checking status", pollerId);
                 if (isStopped) {
-                    log.info("stopped");
+                    log.info("{} stopped", pollerId);
                     promise.complete();
                     vertx.cancelTimer(id);
                 }
@@ -65,23 +67,23 @@ public class TaskPoller<T> {
      */
     private void fetchBatchAndProcess() {
         if (isToStop) {
-            log.info("isToStop=true, stop polling");
+            log.info("{} isToStop=true, stop polling", pollerId);
             isStopped = true;
             return;
         }
         isStopped = false;
         long start = System.currentTimeMillis();
-        String pollId = "PollId:" + config.getQueueName() + "-" + this.hashCode() + "-" + start;
+        String pollId = pollerId + "-" + start;
         pool.withTransaction(this::checkOutTasks)
                 .onSuccess(batch -> {
                     if (batch.isEmpty()) {
-                        log.debug("[{}] size:0. Time:{}ms. Fetch again in {}", pollId, System.currentTimeMillis() - start, config.getNoTaskPollInterval());
+                        log.debug("{} size:0. Time:{}ms. Fetch again in {}", pollId, System.currentTimeMillis() - start, config.getNoTaskPollInterval());
                         rerunWithDelayIfNecessary(config.getNoTaskPollInterval());
                     } else {
                         handleFetchedTasks(batch, pollId, start);
                     }
                 }).onFailure(e -> {
-                    log.error("[{}] Failed to check out batch of tasks, retry in {}", pollId, config.getErrorCheckOutInterval(), e);
+                    log.error("{} Failed to check out batch of tasks, retry in {}", pollId, config.getErrorCheckOutInterval(), e);
                     rerunWithDelayIfNecessary(config.getErrorCheckOutInterval());
                 });
     }
@@ -93,7 +95,7 @@ public class TaskPoller<T> {
     private void handleFetchedTasks(List<TaskEntity> batch, String pollId, long start) {
         List<Long> taskIdList = batch.stream().map(TaskEntity::getId).collect(Collectors.toList());
         List<String> refNumberList = batch.stream().map(TaskEntity::getReferenceNumber).collect(Collectors.toList());
-        String logTmpl = "[%s] size:%d, taskIdList:%s, refList:%s".formatted(pollId, batch.size(), taskIdList, refNumberList);
+        String logTmpl = "%s size:%d, taskIdList:%s, refList:%s".formatted(pollId, batch.size(), taskIdList, refNumberList);
         log.debug("{} fetched. Time:{}ms", logTmpl, System.currentTimeMillis() - start);
         long processStart = System.currentTimeMillis();
         List<Future<Integer>> futures = batch.stream().map(this::processTask).collect(Collectors.toList());
@@ -110,14 +112,14 @@ public class TaskPoller<T> {
 
     private void rerunWithDelayIfNecessary(Duration delay) {
         if (isToStop) {
-            log.info("isToStop=true, stop polling");
+            log.info("{} isToStop=true, stop polling", pollerId);
             isStopped = true;
             return;
         }
         if (config.isPollNextBatch()) {
             vertx.setTimer(delay.toMillis(), id -> fetchBatchAndProcess());
         } else {
-            log.info("[{}] isPollNextBatch=false, no more polling", config.getQueueName());
+            log.info("{} isPollNextBatch=false, no more polling", pollerId);
             isStopped = true;
         }
     }
@@ -138,7 +140,7 @@ public class TaskPoller<T> {
                 .map(res -> convertTask(taskEntity))
                 .compose(tTask -> config.getTaskProcessor().apply(tTask))
                 .recover(err -> {
-                    log.error("[{}][taskId:{}] Error when try to process the task. Mark it as ERROR.", config.getQueueName(), taskEntity.getId(), err);
+                    log.error("{} [taskId:{}] Error when try to process the task. Mark it as ERROR.", pollerId, taskEntity.getId(), err);
                     // for recover to mark the task as ERROR, it needs to be in a separate connection
                     return pool.withConnection(conn -> taskQueueServiceDb.fail(conn, taskEntity.getId()));
                 });
