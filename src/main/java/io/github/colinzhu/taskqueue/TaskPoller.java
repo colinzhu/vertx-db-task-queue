@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.SqlConnection;
@@ -25,6 +26,7 @@ public class TaskPoller<T> {
     private final TaskQueueServiceDbImpl taskQueueServiceDb;
     private final ObjectMapper objectMapper;
     private boolean isToStop = false;
+    private boolean isStopped = false;
 
     public TaskPoller(Vertx vertx, JDBCPool pool, PollConfig<T> config) {
         this(vertx, pool, config, TaskEntityRepo.getInstance(), TaskQueueServiceDbImpl.getInstance(),
@@ -34,11 +36,22 @@ public class TaskPoller<T> {
 
     public void start() {
         isToStop = false;
+        isStopped = false;
         fetchBatchAndProcess();
     }
 
-    public void stop() {
+    public Future<Void> stop() {
         isToStop = true;
+        Promise<Void> promise = Promise.promise();
+        vertx.setPeriodic(1000, id -> {
+            log.info("stopping");
+            if (isStopped) {
+                log.info("stopped");
+                promise.complete();
+                vertx.cancelTimer(id);
+            }
+        });
+        return promise.future();
     }
 
     /**
@@ -47,8 +60,10 @@ public class TaskPoller<T> {
     private void fetchBatchAndProcess() {
         if (isToStop) {
             log.info("isToStop=true, stop polling");
+            isStopped = true;
             return;
         }
+        isStopped = false;
         long start = System.currentTimeMillis();
         String pollId = "PollId:" + config.getQueueName() + "-" + this.hashCode() + "-" + start;
         pool.withTransaction(this::checkOutTasks)
@@ -90,6 +105,7 @@ public class TaskPoller<T> {
     private void rerunWithDelayIfNecessary(Duration delay) {
         if (isToStop) {
             log.info("isToStop=true, stop polling");
+            isStopped = true;
             return;
         }
         if (config.isPollNextBatch()) {
