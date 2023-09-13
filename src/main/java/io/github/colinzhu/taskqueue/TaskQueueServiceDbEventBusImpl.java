@@ -8,7 +8,6 @@ import io.vertx.sqlclient.SqlConnection;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.util.function.Function;
 
 /**
  * QueueClient
@@ -19,7 +18,7 @@ import java.util.function.Function;
  * Client put task into -> Message Broker dispatch -> Client dequeue task
  */
 @Slf4j
-class TaskQueueServiceDbEventBusImpl extends TaskQueueServiceDbImpl{
+class TaskQueueServiceDbEventBusImpl extends TaskQueueServiceDbImpl {
     private final Vertx vertx;
     private static TaskQueueServiceDbEventBusImpl instance;
 
@@ -37,23 +36,20 @@ class TaskQueueServiceDbEventBusImpl extends TaskQueueServiceDbImpl{
     }
 
     @Override
-    public <T> Function<SqlConnection, Future<Task<T>>> enqueue(Function<SqlConnection, Future<T>> function, String queueName, Function<T, String> refExtractor) {
+    public <T> Future<Task<T>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload) {
         throw new UnsupportedOperationException("For using event bus, please use method with `processDelay` parameter.");
     }
 
-    public <T> Function<SqlConnection, Future<Task<T>>> enqueue(Function<SqlConnection, Future<T>> function, String queueName, Function<T, String> refExtractor, Duration processDelay) {
+    public <T> Future<Task<T>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
         if (processDelay.isZero()) {
             throw new IllegalArgumentException("For using event bus, processDelay cannot be zero");
         }
-        return sqlConnection -> {
-            Future<T> f1 = function.apply(sqlConnection);
-            return f1.compose(result -> enqueue(sqlConnection, queueName, refExtractor.apply(result), result, processDelay))
-                    .map(task -> {
-                        vertx.eventBus().send(queueName, task);
-                        log.info("[{}]Task sent to event bus, refNumber:{}, taskId:{}, nextProcessDelay:{}",
-                                queueName, refExtractor.apply(f1.result()), task.getId(), processDelay);
-                        return task;
-                    });
-        };
+        return super.enqueue(sqlConnection, queueName, refNumber, payload, processDelay)
+                .map(task -> {
+                    vertx.eventBus().send(queueName, task);
+                    log.info("[{}]Task sent to event bus, refNumber:{}, taskId:{}, nextProcessDelay:{}",
+                            queueName, refNumber, task.getId(), processDelay);
+                    return task;
+                });
     }
 }

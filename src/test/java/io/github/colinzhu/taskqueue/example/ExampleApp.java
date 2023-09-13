@@ -10,6 +10,9 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import static org.slf4j.Logger.ROOT_LOGGER_NAME;
 
 @Slf4j
@@ -33,6 +36,29 @@ public class ExampleApp {
                             .onFailure(err -> log.error("error", err));
                 })
                 .onFailure(err -> log.error("Unable to create tables", err));
+
+        Runtime.getRuntime().addShutdownHook(
+                new Thread(() -> {
+                    final AtomicBoolean stopCompleted = new AtomicBoolean(false);
+                    vertx.close(ar -> stopCompleted.set(true));
+
+                    int maxSeconds = 10;
+                    int seconds = 0;
+                    while (!stopCompleted.get()) {
+                        seconds++;
+                        try {
+                            Thread.sleep(Duration.ofSeconds(1).toMillis());
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                        if (seconds >= maxSeconds) {
+                            break;
+                        }
+                    }
+                    System.out.println("Successfully stopped vertx");
+                })
+
+        );
     }
 
     private static void setLogLevel(String logger, Level level) {

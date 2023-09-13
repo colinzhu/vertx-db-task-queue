@@ -63,13 +63,13 @@ class TaskEntityRepo {
                 .map(SqlResult::rowCount)
                 .map(deleteCount -> {
                     if (0 == deleteCount) {
-                        throw new IllegalStateException(String.format("[taskId:%s] deleted count is 0. Maybe already deleted by another process.", taskId));
+                        throw new IllegalStateException(String.format("[taskId:%s] fail to delete task, deleteCount is 0, expected: 1, maybe already deleted by another poller.", taskId));
                     } else {
                         return deleteCount;
                     }
                 })
-                .onSuccess(sqlResult -> log.info("[taskId:{}] task deleted. Time:{}ms", taskId, System.currentTimeMillis() - start))
-                .onFailure(err -> log.error("[taskId:{}] fail to delete task. Time:{}ms", taskId, System.currentTimeMillis() - start, err));
+                .onSuccess(sqlResult -> log.info("[taskId:{}] task deleted. Time:{}ms", taskId, System.currentTimeMillis() - start));
+                //.onFailure(err -> log.error("[taskId:{}] fail to delete task. Time:{}ms", taskId, System.currentTimeMillis() - start, err));
     }
 
     Future<Integer> updateStatusToError(SqlConnection sqlConnection, long taskId) {
@@ -83,13 +83,13 @@ class TaskEntityRepo {
                 .map(SqlResult::rowCount)
                 .map(updateCount -> {
                     if (0 == updateCount) {
-                        throw new IllegalStateException(String.format("[taskId:%s] updateStatus to [%s] count is 0. Expected: 1", taskId, status));
+                        throw new IllegalStateException(String.format("[taskId:%s] fail to update task status to [%s], updateCount is 0. expected: 1, maybe already deleted by another poller.", taskId, status));
                     } else {
                         return updateCount;
                     }
                 })
-                .onSuccess(sqlResult -> log.info("[taskId:{}] task status updated to [{}]. Time:{}ms", taskId, status, System.currentTimeMillis() - start))
-                .onFailure(err -> log.error("[taskId:{}] fail to update status to [{}]. Time:{}ms", taskId, status, System.currentTimeMillis() - start, err));
+                .onSuccess(sqlResult -> log.info("[taskId:{}] task status updated to [{}]. Time:{}ms", taskId, status, System.currentTimeMillis() - start));
+                //.onFailure(err -> log.error("[taskId:{}] fail to update status to [{}]. Time:{}ms", taskId, status, System.currentTimeMillis() - start, err));
     }
 
     Future<List<TaskEntity>> checkout(SqlConnection sqlConnection, String queueName, int batchSize, Duration nextProcessDelay) {
@@ -139,15 +139,15 @@ class TaskEntityRepo {
                     .map(SqlResult::rowCount)
                     .map(updateCount -> {
                         if (0 == updateCount) {
-                            throw new IllegalStateException(String.format("update next process timme: count is 0. Expected: %d, taskIDs: %s ", taskIdList.size(), idValues));
+                            throw new IllegalStateException(String.format("failed to checkout tasks, updateCount is 0. Expected: %d, taskIDs: %s ", taskIdList.size(), idValues));
                         } else {
                             return updateCount;
                         }
                     });
         }
         return future
-                .onSuccess(updateCount -> log.debug("taskIdList:{} checkout - update count:{}, time:{}ms", taskIdList, updateCount, System.currentTimeMillis() - start))
-                .onFailure(err -> log.error("taskIdList:{} checkout - failed, time:{}ms", taskIdList, System.currentTimeMillis() - start, err));
+                .onSuccess(updateCount -> log.debug("taskIdList:{} checkout - update count:{}, time:{}ms", taskIdList, updateCount, System.currentTimeMillis() - start));
+                //.onFailure(err -> log.error("taskIdList:{} checkout - failed, time:{}ms", taskIdList, System.currentTimeMillis() - start, err));
     }
 
 
@@ -159,12 +159,12 @@ class TaskEntityRepo {
                 .map(SqlResult::rowCount)
                 .map(updateCount -> {
                     if (0 == updateCount) {
-                        throw new IllegalStateException(String.format("[taskId:%s] reenqueue to [%s] count is 0. Expected: 1", taskId, newNextProcessTime));
+                        throw new IllegalStateException(String.format("[taskId:%s] fail to reenqueue to nextProcessTime:[%s] updateCount is 0. expected: 1, maybe already deleted by another poller.", taskId, newNextProcessTime));
                     } else {
                         return updateCount;
                     }
                 })
-                .onSuccess(sqlResult -> log.info("[taskId:{}] reenqueued, nextProcessTime:[{}]. Time:{}ms", taskId, newNextProcessTime, System.currentTimeMillis() - start))
-                .onFailure(err -> log.error("[taskId:{}] fail to reenqueue to nextProcessTime:[{}]. Time:{}ms", taskId, newNextProcessTime, System.currentTimeMillis() - start, err));
+                .onSuccess(sqlResult -> log.info("[taskId:{}] reenqueued, nextProcessTime:[{}]. Time:{}ms", taskId, newNextProcessTime, System.currentTimeMillis() - start));
+                //.onFailure(err -> log.error("[taskId:{}] fail to reenqueue to nextProcessTime:[{}]. Time:{}ms", taskId, newNextProcessTime, System.currentTimeMillis() - start, err));
     }
 }

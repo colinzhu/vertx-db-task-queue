@@ -5,7 +5,6 @@ import io.vertx.core.Vertx;
 import io.vertx.sqlclient.SqlConnection;
 
 import java.time.Duration;
-import java.util.function.Function;
 
 /**
  * <pre>
@@ -24,40 +23,42 @@ public interface TaskQueueService {
     }
 
     /**
-     * Accept a main function, append the logic to create a task into task queue. The main function and task handling logic will be in the same transaction.
-     * @param function the main function to return Future of task payload
+     * To create a task into task queue
+     * @param sqlConnection DB transaction
      * @param queueName queue name
-     * @param refExtractor function to extract reference number from task payload
-     * @return function which invokes the main function, and then create a task into task queue
+     * @param refNumber reference number of payload
+     * @param payload payload object which will be marshalled to json string
+     * @return future of a task which has been stored into task queue
      * @param <T> task payload type
      */
-     <T> Function<SqlConnection, Future<Task<T>>> enqueue(Function<SqlConnection, Future<T>> function, String queueName, Function<T, String> refExtractor);
+    <T> Future<Task<T>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload);
 
     /**
-     * Accept a main function, append the logic to create a task into task queue. The main function and task handling logic will be in the same transaction.
-     * @param function the main function to return Future of task payload
+     * To create a task into task queue
+     * @param sqlConnection DB transaction
      * @param queueName queue name
-     * @param refExtractor function to extract reference number from task payload
-     * @param processDelay process delay time
-     * @return function which invokes the main function, and then create a task into task queue
+     * @param refNumber reference number of payload
+     * @param payload payload object which will be marshalled to json string
+     * @param delay process delay time after putting into the queue
+     * @return future of a task which has been stored into task queue
      * @param <T> task payload type
      */
-    <T> Function<SqlConnection, Future<Task<T>>> enqueue(Function<SqlConnection, Future<T>> function, String queueName, Function<T, String> refExtractor, Duration processDelay);
+    <T> Future<Task<T>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration delay);
 
     /**
-     * Accept a main function, append the logic to finish the task (remove from task queue). The main function and task handling logic will be in the same transaction.
-     * @param function the main function
+     * To finish the task (remove from task queue)
+     * @param sqlConnection DB transaction
      * @param taskId the task ID
-     * @return function which invokes the main function, and then finish the task (remove from task queue)
+     * @return future of number of task updated / removed
      */
-    <T> Function<SqlConnection, Future<T>> finish(Function<SqlConnection, Future<T>> function, long taskId);
+    Future<Integer> finish(SqlConnection sqlConnection, long taskId);
 
     /**
-     * Accept a main function, append the logic to re-put the task into the queue (update task process delay time). The main function and task handling logic will be in the same transaction.
-     * @param function the main function
+     * Update the task so that it can be processed again later
+     * @param sqlConnection DB transaction
      * @param taskId the task ID
-     * @param delay process delay time
-     * @return function which invokes the main function, and then create re-put the task into task queue (update task process delay time)
+     * @param delay process delay time after putting into the queue
+     * @return future of number of task updated
      */
-    <T> Function<SqlConnection, Future<T>> reenqueue(Function<SqlConnection, Future<T>> function, long taskId, Duration delay);
+    Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay);
 }

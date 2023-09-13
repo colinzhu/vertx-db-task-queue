@@ -50,7 +50,8 @@ public class PaymentCreateVerticle extends AbstractVerticle {
             Payment p = new Payment("CREATED", System.currentTimeMillis());
             final int i2 = i;
             futures.add(
-                    pool.withTransaction(TaskQueueService.taskQueue().enqueue(sqlConnection -> insertPayment(sqlConnection, p), "payment.check", payment -> p.getId().toString()))
+                    pool.withTransaction(conn -> insertPayment(conn, p)
+                                    .compose(payment -> TaskQueueService.taskQueue().enqueue(conn, "payment.check", payment.getId().toString(), payment)))
                             .onSuccess(event -> log.debug("#{} payment and task created, time: {}ms", i2, System.currentTimeMillis() - start))
                             .onFailure(e -> log.error("error creating payment / task", e))
             );

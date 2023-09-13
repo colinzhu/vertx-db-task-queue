@@ -140,7 +140,7 @@ public class TaskPoller<T> {
                 .map(res -> convertTask(taskEntity))
                 .compose(tTask -> config.getTaskProcessor().apply(tTask))
                 .recover(err -> {
-                    log.error("{} [taskId:{}] Error when try to process the task. Mark it as ERROR.", pollerId, taskEntity.getId(), err);
+                    log.error("{} [taskId:{}] Error when try to process the task. Will mark it as ERROR.", pollerId, taskEntity.getId(), err);
                     // for recover to mark the task as ERROR, it needs to be in a separate connection
                     return pool.withConnection(conn -> taskQueueServiceDb.fail(conn, taskEntity.getId()));
                 });

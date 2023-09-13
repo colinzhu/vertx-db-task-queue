@@ -57,7 +57,7 @@ class TaskQueueTest {
         Checkpoint checkpoint = testContext.checkpoint(2);
         Payment payment = new Payment("CREATED", System.currentTimeMillis());
         String queueName = "REENQUEUE".equals(afterProcessAction) ? "Q2-need-reenquueue" : "Q1-need-finish";
-        pool.withTransaction(taskQueueService.enqueue(sqlConnection -> savePayment(sqlConnection, payment), queueName, pymt -> "ref1"))
+        pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p)))
                 .onComplete(testContext.succeeding(task -> {
                     vertx.setTimer(6000, id -> {
                         // verify payment status
@@ -80,13 +80,57 @@ class TaskQueueTest {
 
         Function<Task<Payment>, Future<Integer>> taskProcessor = task -> {
             log.info("Processing {}", task.getPayload());
-            Function<SqlConnection, Future<Integer>> mainFunction = conn -> updatePayment(conn, task.getPayload());
             Function<SqlConnection, Future<Integer>> function;
             if ("REENQUEUE".equals(afterProcessAction)) {
-                function = taskQueueService.reenqueue(mainFunction, task.getId(), Duration.ofSeconds(5));
+                function =  conn -> updatePayment(conn, task.getPayload())
+                        .compose(p -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5)));
             } else {
-                function = taskQueueService.finish(mainFunction, task.getId());
+                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.finish(conn, task.getId()));
             }
+            return pool.withTransaction(function);
+        };
+
+        PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
+                .queueName(queueName)
+                .batchSize(5)
+                .nextProcessDelay(Duration.ofMinutes(10))
+                .taskProcessor(taskProcessor)
+                .payloadClass(Payment.class).build();
+        TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
+        poller.start();
+    }
+
+    @Test
+    @DisplayName("Task already finished by another poller")
+    void testTaskAlreadyFinishedByAnotherPoller(Vertx vertx, VertxTestContext testContext) {
+        Checkpoint checkpoint = testContext.checkpoint(2);
+        Payment payment = new Payment("CREATED", System.currentTimeMillis());
+        String queueName = "Q-already-finished-by-another-poller";
+        pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p)))
+                .onComplete(testContext.succeeding(task -> {
+                    vertx.setTimer(6000, id -> {
+                        // verify payment status
+                        retrievePayment(payment.getId()).onComplete(testContext.succeeding(res -> {
+                            Assertions.assertEquals("STATUS_ANOTHER_POLLER", res.getStatus(), "PAYMENT status should still be STATUS_ANOTHER_POLLER instead of STATUS_CURRENT_POLLER");
+                            checkpoint.flag();
+                        }));
+
+                        // verify task
+                        retrieveTask(task.getId()).onComplete(testContext.succeeding(res -> {
+                            Assertions.assertNull(res, "task should not be available, already deleted by another poller");
+                            checkpoint.flag();
+                        }));
+                    });
+                }));
+
+        Function<Task<Payment>, Future<Integer>> taskProcessor = task -> {
+            // simulate task already finished by another poller (payment status updated to "ABC", task deleted
+            pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskQueueService.finish(conn, task.getId())));
+
+            log.info("Processing {}", task.getPayload());
+            Function<SqlConnection, Future<Integer>> function = conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_CURRENT_POLLER")
+                        .compose(p -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5)));
+
             return pool.withTransaction(function);
         };
 
@@ -107,7 +151,8 @@ class TaskQueueTest {
 
         Function<Task<Payment>, Future<Integer>> taskProcessor = task -> {
             log.info("Processing {}", task.getPayload());
-            return pool.withTransaction(taskQueueService.reenqueue(conn -> updatePayment(conn, task.getPayload()), task.getId(), Duration.ofSeconds(5)));
+            return pool.withTransaction(conn -> updatePayment(conn, task.getPayload())
+                    .compose(p -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5))));
         };
 
         PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
@@ -117,7 +162,7 @@ class TaskQueueTest {
         vertx.setTimer(1000, id -> poller.stop().onSuccess(v -> log.info("poller stopped.")).onSuccess(v -> checkpoint.flag()));
 
         Payment payment = new Payment("CREATED", System.currentTimeMillis());
-        pool.withTransaction(taskQueueService.enqueue(sqlConnection -> savePayment(sqlConnection, payment), "Q3-poller-stopped", pymt -> "ref1"))
+        pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, "Q3-poller-stopped", "ref1", p)))
                 .onComplete(testContext.succeeding(task -> {
                     vertx.setTimer(6000, id -> {
                         // verify payment status
@@ -141,7 +186,7 @@ class TaskQueueTest {
     void testTaskProcessingError(String errLocation, Vertx vertx, VertxTestContext testContext) {
         Checkpoint checkpoint = testContext.checkpoint(2);
         Payment payment = new Payment("CREATED", System.currentTimeMillis());
-        pool.withTransaction(taskQueueService.enqueue(sqlConnection -> savePayment(sqlConnection, payment), "Q1", pymt -> "ref1"))
+        pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, "Q1", "ref1", p)))
                 .onComplete(testContext.succeeding(task -> {
                     // after 6 seconds
                     vertx.setTimer(6000, id -> {
@@ -170,8 +215,8 @@ class TaskQueueTest {
                             throw new RuntimeException("simulate exception within transaction");
                         }
                         return updateCount;
-                    });
-            return pool.withTransaction(taskQueueService.finish(updatePaymentFunc, task.getId()));
+                    }).compose(count -> taskQueueService.finish(conn, task.getId()));
+            return pool.withTransaction(updatePaymentFunc);
         };
 
         PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
@@ -196,6 +241,11 @@ class TaskQueueTest {
                 .map(SqlResult::size);
     }
 
+    private Future<Integer> updatePaymentTo(SqlConnection sqlConnection, Payment payment, String status) {
+        return sqlConnection.query("UPDATE PAYMENT SET STATUS = '" + status + "' WHERE ID = " + payment.getId())
+                .execute()
+                .map(SqlResult::size);
+    }
     private Future<Payment> retrievePayment(Long id) {
         return pool.query("SELECT * FROM PAYMENT WHERE ID = " + id)
                 .execute()
@@ -218,6 +268,11 @@ class TaskQueueTest {
                     RowIterator<Row> iterator = rows.iterator();
                     return iterator.hasNext() ? iterator.next() : null;
                 });
+    }
+
+    private Future<RowSet<Row>> deleteTask(Long id) {
+        return pool.query("DELETE TASKS WHERE ID = " + id)
+                .execute();
     }
 
 }

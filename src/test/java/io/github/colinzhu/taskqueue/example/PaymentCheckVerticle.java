@@ -3,6 +3,7 @@ package io.github.colinzhu.taskqueue.example;
 import io.github.colinzhu.taskqueue.PollConfig;
 import io.github.colinzhu.taskqueue.TaskPoller;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Promise;
 import io.vertx.jdbcclient.JDBCPool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,5 +30,10 @@ public class PaymentCheckVerticle extends AbstractVerticle {
         // register taskProcessor to event bus
         vertx.eventBus().consumer("payment.check", taskProcessor);
         log.info("{}[{}] instance started", PaymentCheckVerticle.class.getSimpleName(), this.hashCode());
+    }
+
+    @Override
+    public void stop(Promise<Void> stopPromise) {
+        poller.stop().onSuccess(v -> stopPromise.complete());
     }
 }
