@@ -78,7 +78,7 @@ class TaskQueueTest {
                     });
                 }));
 
-        Function<Task<Payment>, Future<Integer>> taskProcessor = task -> {
+        Function<Task<Payment>, Future<?>> taskProcessor = task -> {
             log.info("Processing {}", task.getPayload());
             Function<SqlConnection, Future<Integer>> function;
             if ("REENQUEUE".equals(afterProcessAction)) {
@@ -123,7 +123,7 @@ class TaskQueueTest {
                     });
                 }));
 
-        Function<Task<Payment>, Future<Integer>> taskProcessor = task -> {
+        Function<Task<Payment>, Future<?>> taskProcessor = task -> {
             // simulate task already finished by another poller (payment status updated to "ABC", task deleted
             pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskQueueService.finish(conn, task.getId())));
 
@@ -149,7 +149,7 @@ class TaskQueueTest {
     void testPollerStopped(Vertx vertx, VertxTestContext testContext) {
         Checkpoint checkpoint = testContext.checkpoint(3);
 
-        Function<Task<Payment>, Future<Integer>> taskProcessor = task -> {
+        Function<Task<Payment>, Future<?>> taskProcessor = task -> {
             log.info("Processing {}", task.getPayload());
             return pool.withTransaction(conn -> updatePayment(conn, task.getPayload())
                     .compose(p -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5))));
@@ -204,7 +204,7 @@ class TaskQueueTest {
                     });
                 }));
 
-        Function<Task<Payment>, Future<Integer>> taskProcessor = task -> {
+        Function<Task<Payment>, Future<?>> taskProcessor = task -> {
             log.info("Processing {}", task.getPayload());
             if ("ERR_BEFORE_TXN".equals(errLocation)) {
                 throw new RuntimeException("simulate exception before transaction");
@@ -268,11 +268,6 @@ class TaskQueueTest {
                     RowIterator<Row> iterator = rows.iterator();
                     return iterator.hasNext() ? iterator.next() : null;
                 });
-    }
-
-    private Future<RowSet<Row>> deleteTask(Long id) {
-        return pool.query("DELETE TASKS WHERE ID = " + id)
-                .execute();
     }
 
 }

@@ -12,7 +12,7 @@ public class PollConfig<T> {
     String queueName;
     int batchSize;
     Duration nextProcessDelay;
-    Function<Task<T>, Future<Integer>> taskProcessor;
+    Function<Task<T>, Future<?>> taskProcessor;
     Class<T> payloadClass;
 
     @Builder.Default Duration noTaskPollInterval = Duration.ofSeconds(5);

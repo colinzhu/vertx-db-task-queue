@@ -98,7 +98,7 @@ public class TaskPoller<T> {
         String logTmpl = "%s size:%d, taskIdList:%s, refList:%s".formatted(pollId, batch.size(), taskIdList, refNumberList);
         log.debug("{} fetched. Time:{}ms", logTmpl, System.currentTimeMillis() - start);
         long processStart = System.currentTimeMillis();
-        List<Future<Integer>> futures = batch.stream().map(this::processTask).collect(Collectors.toList());
+        List<Future<?>> futures = batch.stream().map(this::processTask).collect(Collectors.toList());
         Future.join(futures).onSuccess(event -> {
             long end = System.currentTimeMillis();
             log.info("{}, all tasks finished or marked as ERROR. Fetch and process time:{}ms, fetch time:{}ms, process time:{}ms", logTmpl, end - start, processStart - start, end - processStart);
@@ -135,14 +135,14 @@ public class TaskPoller<T> {
         }
     }
 
-    private Future<Integer> processTask(TaskEntity taskEntity) {
+    private Future<?> processTask(TaskEntity taskEntity) {
         return Future.succeededFuture()
                 .map(res -> convertTask(taskEntity))
                 .compose(tTask -> config.getTaskProcessor().apply(tTask))
                 .recover(err -> {
                     log.error("{} [taskId:{}] Error when try to process the task. Will mark it as ERROR.", pollerId, taskEntity.getId(), err);
                     // for recover to mark the task as ERROR, it needs to be in a separate connection
-                    return pool.withConnection(conn -> taskQueueServiceDb.fail(conn, taskEntity.getId()));
+                    return pool.withConnection(conn -> taskQueueServiceDb.fail(conn, taskEntity.getId()).compose(count -> Future.succeededFuture()));
                 });
     }
 
