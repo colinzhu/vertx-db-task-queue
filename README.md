@@ -38,4 +38,5 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] Task processing error handling - done
 - [x] reenqueue - done
 - [x] junit - done
-- [ ] API to handle ERROR task
+- [x] API to handle ERROR task - call reenqueue API
+- [ ] micrometer - create_time -> delete_time, checkout_time -> delete_time 
