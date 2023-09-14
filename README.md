@@ -4,9 +4,9 @@
 A DB based task queue with vert.x
 
 ## Usage - API
-- `Task` - POJO to be processed by task processor `Function<Task<T>, Future<Integer>>`
-- `TaskPoller` - Poller to poll tasks from DB and invoke the task processor
-- `TaskConfig` - POJO to store the poller config
+- `Task<T>` - POJO to be processed by task processor `Function<Task<T>, Future<?>>`
+- `TaskPoller<T>` - Poller to poll tasks from DB and invoke the task processor
+- `PollConfig<T>` - POJO to store the poller config
 - `TaskQueueService` - Service to 
   1. put task into queue
   2. mark the task as finished
@@ -14,7 +14,7 @@ A DB based task queue with vert.x
   4. mark the task as error
 
 ## Example
-Please refer to `TaskQueueTest` in test package
+Please refer to `ExampleApp`, `TaskQueueTest` in test package
 
 ## Create table
 ```sql
@@ -39,4 +39,6 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] reenqueue - done
 - [x] junit - done
 - [x] API to handle ERROR task - call reenqueue API
-- [ ] micrometer - create_time -> delete_time, checkout_time -> delete_time 
+- [ ] micrometer - create_time -> delete_time, checkout_time -> delete_time
+- [ ] expose ATTEMPT in Task?
+- [ ] test: when 2 instances, 1 is down but without checked-out tasks in progress, the 2nd instance will continue to process 
