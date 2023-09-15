@@ -80,6 +80,7 @@ class TaskQueueTest {
                 }));
 
         Function<Task<Payment>, Future<?>> taskProcessor = task -> {
+            Assertions.assertEquals(payment.getCreateTime().toInstant(), task.getPayload().getCreateTime().toInstant(), "date time should be same as the original object");
             log.info("Processing {}", task.getPayload());
             Function<SqlConnection, Future<Integer>> function;
             if ("REENQUEUE".equals(afterProcessAction)) {
