@@ -2,6 +2,7 @@ package io.github.colinzhu.taskqueue.example;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
+import io.github.colinzhu.taskqueue.H2Database;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Verticle;
 import io.vertx.core.Vertx;
@@ -27,7 +28,7 @@ public class ExampleApp {
 
         Vertx vertx = Vertx.vertx();
         H2Database.main();
-        JDBCPool pool = H2Database.getJdbcPool(vertx);
+        JDBCPool pool = H2Database.getJdbcPool(vertx, false);
         H2Database.createTables(pool)
                 .onSuccess(tablesCreated -> {
                     Verticle createVerticle = new PaymentCreateVerticle(pool);

@@ -1,5 +1,6 @@
 package io.github.colinzhu.taskqueue.example;
 
+import io.github.colinzhu.taskqueue.H2Database;
 import io.github.colinzhu.taskqueue.PollConfig;
 import io.github.colinzhu.taskqueue.TaskPoller;
 import io.vertx.core.AbstractVerticle;
@@ -17,7 +18,7 @@ public class PaymentCheckVerticle extends AbstractVerticle {
     private TaskPoller<Payment> poller;
     @Override
     public void start() {
-        pool = H2Database.getJdbcPool(vertx); // TODO check if pool is shared
+        pool = H2Database.getJdbcPool(vertx, false); // TODO check if pool is shared
 
         // prepare a taskProcessor
         PaymentCheckTaskProcessor taskProcessor = new PaymentCheckTaskProcessor(vertx, pool);
