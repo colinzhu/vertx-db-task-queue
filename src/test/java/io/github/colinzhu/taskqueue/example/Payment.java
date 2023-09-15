@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
+import java.time.OffsetDateTime;
 
 @Data
 @NoArgsConstructor
@@ -12,9 +13,9 @@ import java.io.Serializable;
 public class Payment implements Serializable {
     private Long id;
     private String status;
-    private Long createTime;
+    private OffsetDateTime createTime;
 
-    public Payment(String status, Long createTime) {
+    public Payment(String status, OffsetDateTime createTime) {
         this.status = status;
         this.createTime = createTime;
     }

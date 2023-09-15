@@ -55,7 +55,7 @@ public class TestHelper {
                 create table IF NOT EXISTS PAYMENT (
                     ID bigint auto_increment,
                     STATUS varchar(30),
-                    CREATE_TIME bigint,
+                    CREATE_TIME TIMESTAMP WITH TIME ZONE,
                     PRIMARY KEY (ID)
                 );
                 """;

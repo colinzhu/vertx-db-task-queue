@@ -18,6 +18,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.function.Function;
 
@@ -55,7 +56,7 @@ class TaskQueueTest {
     @CsvSource({"FINISH", "REENQUEUE"})
     void testNormal(String afterProcessAction, Vertx vertx, VertxTestContext testContext) {
         Checkpoint checkpoint = testContext.checkpoint(2);
-        Payment payment = new Payment("CREATED", System.currentTimeMillis());
+        Payment payment = new Payment("CREATED", OffsetDateTime.now());
         String queueName = "REENQUEUE".equals(afterProcessAction) ? "Q2-need-reenquueue" : "Q1-need-finish";
         pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p)))
                 .onComplete(testContext.succeeding(task -> {
@@ -104,7 +105,7 @@ class TaskQueueTest {
     @DisplayName("Task already finished by another poller")
     void testTaskAlreadyFinishedByAnotherPoller(Vertx vertx, VertxTestContext testContext) {
         Checkpoint checkpoint = testContext.checkpoint(2);
-        Payment payment = new Payment("CREATED", System.currentTimeMillis());
+        Payment payment = new Payment("CREATED", OffsetDateTime.now());
         String queueName = "Q-already-finished-by-another-poller";
         pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p)))
                 .onComplete(testContext.succeeding(task -> {
@@ -161,7 +162,7 @@ class TaskQueueTest {
         poller.start();
         vertx.setTimer(1000, id -> poller.stop().onSuccess(v -> log.info("poller stopped.")).onSuccess(v -> checkpoint.flag()));
 
-        Payment payment = new Payment("CREATED", System.currentTimeMillis());
+        Payment payment = new Payment("CREATED", OffsetDateTime.now());
         pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, "Q3-poller-stopped", "ref1", p)))
                 .onComplete(testContext.succeeding(task -> {
                     vertx.setTimer(6000, id -> {
@@ -185,7 +186,7 @@ class TaskQueueTest {
     @CsvSource({"ERR_IN_TXN","ERR_BEFORE_TXN"})
     void testTaskProcessingError(String errLocation, Vertx vertx, VertxTestContext testContext) {
         Checkpoint checkpoint = testContext.checkpoint(2);
-        Payment payment = new Payment("CREATED", System.currentTimeMillis());
+        Payment payment = new Payment("CREATED", OffsetDateTime.now());
         pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, "Q1", "ref1", p)))
                 .onComplete(testContext.succeeding(task -> {
                     // after 6 seconds
@@ -257,7 +258,7 @@ class TaskQueueTest {
                     if (null == row) {
                         return null;
                     }
-                    return new Payment(row.getLong("ID"), row.getString("STATUS"), row.getLong("CREATE_TIME"));
+                    return new Payment(row.getLong("ID"), row.getString("STATUS"), row.getOffsetDateTime("CREATE_TIME"));
                 });
     }
 

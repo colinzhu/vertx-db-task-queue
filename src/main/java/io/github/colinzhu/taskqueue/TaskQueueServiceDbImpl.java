@@ -2,6 +2,7 @@ package io.github.colinzhu.taskqueue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.vertx.core.Future;
 import io.vertx.sqlclient.SqlConnection;
@@ -15,9 +16,14 @@ import java.time.Duration;
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class TaskQueueServiceDbImpl implements TaskQueueService {
     private final TaskEntityRepo taskEntityRepo;
-    private final ObjectMapper objectMapper;
-    private static final TaskQueueServiceDbImpl instance = new TaskQueueServiceDbImpl(TaskEntityRepo.getInstance(),
-            new ObjectMapper().registerModule(new JavaTimeModule()));
+
+    /**
+     * disable SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, so the date time format will be:
+     * OffsetDateTime: "2023-09-15T20:09:06.972733991+08:00", instead: 1694779746.972733991
+     * LocalDateTime: "2023-09-15T20:09:06.9727829", instead: [2023,9,15,20,9,6,972782900]
+     */
+    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule()).disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    private static final TaskQueueServiceDbImpl instance = new TaskQueueServiceDbImpl(TaskEntityRepo.getInstance());
 
     static TaskQueueServiceDbImpl getInstance() {
         return instance;

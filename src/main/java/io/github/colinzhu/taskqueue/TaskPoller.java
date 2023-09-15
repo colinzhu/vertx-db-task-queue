@@ -24,14 +24,14 @@ public class TaskPoller<T> {
     private final PollConfig<T> config;
     private final TaskEntityRepo taskEntityRepo;
     private final TaskQueueServiceDbImpl taskQueueServiceDb;
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+
     private String pollerId;
     private boolean isToStop = false;
     private boolean isStopped = true; // default is stopped, until start() is invoked
 
     public TaskPoller(Vertx vertx, JDBCPool pool, PollConfig<T> config) {
-        this(vertx, pool, config, TaskEntityRepo.getInstance(), TaskQueueServiceDbImpl.getInstance(),
-                new ObjectMapper().registerModule(new JavaTimeModule()));
+        this(vertx, pool, config, TaskEntityRepo.getInstance(), TaskQueueServiceDbImpl.getInstance());
         pollerId = "poller-" + config.getQueueName() + "-" + this.hashCode();
         log.info("{} created: {}", pollerId, config);
     }

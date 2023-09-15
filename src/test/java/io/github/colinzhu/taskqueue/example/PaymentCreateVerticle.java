@@ -12,6 +12,7 @@ import io.vertx.sqlclient.Tuple;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,7 +48,7 @@ public class PaymentCreateVerticle extends AbstractVerticle {
         }
         List<Future<?>> futures = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            Payment p = new Payment("CREATED", System.currentTimeMillis());
+            Payment p = new Payment("CREATED", OffsetDateTime.now());
             final int i2 = i;
             futures.add(
                     pool.withTransaction(conn -> insertPayment(conn, p)
