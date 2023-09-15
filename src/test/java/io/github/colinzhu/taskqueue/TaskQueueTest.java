@@ -60,7 +60,7 @@ class TaskQueueTest {
         String queueName = "REENQUEUE".equals(afterProcessAction) ? "Q2-need-reenquueue" : "Q1-need-finish";
         pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p)))
                 .onComplete(testContext.succeeding(task -> {
-                    vertx.setTimer(6000, id -> {
+                    vertx.setTimer(2000, id -> {
                         // verify payment status
                         retrievePayment(payment.getId()).onComplete(testContext.succeeding(res -> {
                             Assertions.assertEquals("PROCESSED", res.getStatus(), "PAYMENT status should be changed");
@@ -96,7 +96,9 @@ class TaskQueueTest {
                 .batchSize(5)
                 .nextProcessDelay(Duration.ofMinutes(10))
                 .taskProcessor(taskProcessor)
-                .payloadClass(Payment.class).build();
+                .payloadClass(Payment.class)
+                .noTaskPollInterval(Duration.ofSeconds(1))
+                .hasTaskPollInterval(Duration.ofSeconds(1)).build();
         TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
     }
@@ -109,7 +111,7 @@ class TaskQueueTest {
         String queueName = "Q-already-finished-by-another-poller";
         pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p)))
                 .onComplete(testContext.succeeding(task -> {
-                    vertx.setTimer(6000, id -> {
+                    vertx.setTimer(2000, id -> {
                         // verify payment status
                         retrievePayment(payment.getId()).onComplete(testContext.succeeding(res -> {
                             Assertions.assertEquals("STATUS_ANOTHER_POLLER", res.getStatus(), "PAYMENT status should still be STATUS_ANOTHER_POLLER instead of STATUS_CURRENT_POLLER");
@@ -140,7 +142,9 @@ class TaskQueueTest {
                 .batchSize(5)
                 .nextProcessDelay(Duration.ofMinutes(10))
                 .taskProcessor(taskProcessor)
-                .payloadClass(Payment.class).build();
+                .payloadClass(Payment.class)
+                .noTaskPollInterval(Duration.ofSeconds(1))
+                .hasTaskPollInterval(Duration.ofSeconds(1)).build();
         TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
     }
@@ -157,7 +161,13 @@ class TaskQueueTest {
         };
 
         PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
-                .queueName("Q3-poller-stopped").batchSize(5).nextProcessDelay(Duration.ofMinutes(10)).taskProcessor(taskProcessor).payloadClass(Payment.class).build();
+                .queueName("Q3-poller-stopped")
+                .batchSize(5)
+                .nextProcessDelay(Duration.ofMinutes(10))
+                .taskProcessor(taskProcessor)
+                .payloadClass(Payment.class)
+                .noTaskPollInterval(Duration.ofSeconds(1))
+                .hasTaskPollInterval(Duration.ofSeconds(1)).build();
         TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
         vertx.setTimer(1000, id -> poller.stop().onSuccess(v -> log.info("poller stopped.")).onSuccess(v -> checkpoint.flag()));
@@ -165,7 +175,7 @@ class TaskQueueTest {
         Payment payment = new Payment("CREATED", OffsetDateTime.now());
         pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, "Q3-poller-stopped", "ref1", p)))
                 .onComplete(testContext.succeeding(task -> {
-                    vertx.setTimer(6000, id -> {
+                    vertx.setTimer(2000, id -> {
                         // verify payment status
                         retrievePayment(payment.getId()).onComplete(testContext.succeeding(res -> {
                             //Assertions.assertEquals("CREATED", res.getStatus(), "PAYMENT should not be changed");
@@ -190,7 +200,7 @@ class TaskQueueTest {
         pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, "Q1", "ref1", p)))
                 .onComplete(testContext.succeeding(task -> {
                     // after 6 seconds
-                    vertx.setTimer(6000, id -> {
+                    vertx.setTimer(2000, id -> {
                         // verify payment status
                         retrievePayment(payment.getId()).onComplete(testContext.succeeding(p -> {
                             Assertions.assertEquals("CREATED", p.getStatus(), "PAYMENT status should be rolled back / no change");
@@ -221,7 +231,13 @@ class TaskQueueTest {
         };
 
         PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
-                .queueName("Q1").batchSize(5).nextProcessDelay(Duration.ofMinutes(10)).taskProcessor(taskProcessor).payloadClass(Payment.class).build();
+                .queueName("Q1")
+                .batchSize(5)
+                .nextProcessDelay(Duration.ofMinutes(10))
+                .taskProcessor(taskProcessor)
+                .payloadClass(Payment.class)
+                .noTaskPollInterval(Duration.ofSeconds(1))
+                .hasTaskPollInterval(Duration.ofSeconds(1)).build();
         TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
     }
