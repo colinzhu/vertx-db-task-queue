@@ -35,7 +35,10 @@ class TaskEntityRepo {
 //    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= CURRENT_TIMESTAMP() ORDER BY NEXT_PROCESS_TIME, ID FETCH FIRST #{batchSize} ROWS ONLY FOR UPDATE SKIP LOCKED";
     private static final String SQL_CHECK_OUT = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID IN ({idList})";
     private static final String SQL_RE_ENQUEUE = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID = #{id}";
+
+    // below for support only
     private static final String SQL_RE_ENQUEUE_ERR_BATCH = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID IN (#{idList}) AND STATUS = 'ERROR'";
+    private static final String SQL_SEARCH_QNAME_STATUS = "SELECT * FROM TASKS WHERE QUEUE_NAME = #{queueName} AND STATUS = #{status} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY";
 
     Future<TaskEntity> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
         OffsetDateTime now = OffsetDateTime.now();
@@ -164,7 +167,7 @@ class TaskEntityRepo {
                 //.onFailure(err -> log.error("[taskId:{}] fail to reenqueue to nextProcessTime:[{}]. Time:{}ms", taskId, newNextProcessTime, System.currentTimeMillis() - start, err));
     }
 
-
+    // for support only
     Future<Integer> reenqueueErrorTasks(SqlConnection sqlConnection, Set<Long> taskIds) {
         long start = System.currentTimeMillis();
         OffsetDateTime newNextProcessTime = OffsetDateTime.now();
@@ -174,6 +177,22 @@ class TaskEntityRepo {
                 .map(SqlResult::rowCount)
                 .onSuccess(updateCount -> log.info("task(s) reenqueueErrorTasks: updateCount={}, taskIds={}, nextProcessTime={}, time={}ms", updateCount, taskIds, newNextProcessTime, System.currentTimeMillis() - start))
                 .onFailure(err -> log.error("task(s) reenqueueErrorTasks failed: taskIds={}, time:{}ms", taskIds, System.currentTimeMillis() - start, err));
+    }
+
+    // for support only
+    Future<List<TaskEntity>> searchByQueueNameAndStatus(SqlConnection sqlConnection, String queueName, String status, int batchSize) {
+        long start = System.currentTimeMillis();
+        return SqlTemplate.forQuery(sqlConnection, SQL_SEARCH_QNAME_STATUS)
+                .execute(Map.of("queueName", queueName, "status", status, "batchSize", batchSize))
+                .map(rows -> {
+                    List<TaskEntity> records = new ArrayList<>();
+                    rows.forEach(row -> records.add(mapRowToTaskEntity(row)));
+                    if (rows.size() > 0) {
+                        log.debug("task searchByQueueNameAndStatus: queue={}, status={}, count={}, time={}ms", queueName, status, records.size(), System.currentTimeMillis() - start);
+                    }
+                    return records;
+                })
+                .onFailure(err -> log.error("task searchByQueueNameAndStatus failed: queue={}, status={}, time={}ms", queueName, status, System.currentTimeMillis() - start, err));
     }
 
     private static TaskEntity mapRowToTaskEntity(Row row) {
