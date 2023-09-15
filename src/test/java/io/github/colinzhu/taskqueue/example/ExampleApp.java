@@ -34,6 +34,7 @@ public class ExampleApp {
                     Verticle createVerticle = new PaymentCreateVerticle(pool);
                     vertx.deployVerticle(PaymentCheckVerticle.class, new DeploymentOptions().setInstances(2))
                             .compose(any -> vertx.deployVerticle(createVerticle))
+                            .compose(any -> vertx.deployVerticle(new TaskSupportVerticle()))
                             .onFailure(err -> log.error("error", err));
                 })
                 .onFailure(err -> log.error("Unable to create tables", err));
