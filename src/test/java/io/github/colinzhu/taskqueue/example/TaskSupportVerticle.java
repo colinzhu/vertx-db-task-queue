@@ -12,6 +12,8 @@ import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
+import io.vertx.ext.web.handler.FileSystemAccess;
+import io.vertx.ext.web.handler.StaticHandler;
 import io.vertx.jdbcclient.JDBCPool;
 import lombok.extern.slf4j.Slf4j;
 
@@ -35,6 +37,7 @@ public class TaskSupportVerticle extends AbstractVerticle {
     private void startHttpServer() {
         HttpServer server = vertx.createHttpServer();
         Router router = Router.router(vertx);
+        router.route("/support/taskqueue/web/*").handler(StaticHandler.create(FileSystemAccess.ROOT, "/home/colin/dev/git/vertx-db-task-queue/src/test/resources/web").setCachingEnabled(false));
         router.route().handler(BodyHandler.create());
         router.route("/support/taskqueue/reprocess").handler(this::reprocess);
         router.route("/support/taskqueue/search/:queueName/:status").handler(this::search);
@@ -45,6 +48,7 @@ task queue support server started.
 http://localhost:#{port}/support/taskqueue/reprocess
 http://localhost:#{port}/support/taskqueue/search/payment.check/CREATED?size=5
 http://localhost:#{port}/support/taskqueue/count
+http://localhost:#{port}/support/taskqueue/web/
                 """;
 
         server.requestHandler(router).listen(0)
