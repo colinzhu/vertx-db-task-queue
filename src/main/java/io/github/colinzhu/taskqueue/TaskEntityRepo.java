@@ -38,7 +38,7 @@ class TaskEntityRepo {
     private static final String SQL_RE_ENQUEUE = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID = #{id}";
 
     // below for support only
-    private static final String SQL_RE_ENQUEUE_ERR_BATCH = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID IN (#{idList}) AND STATUS = 'ERROR'";
+    private static final String SQL_RE_ENQUEUE_ERR_BATCH = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID IN ({idList}) AND STATUS = 'ERROR'";
     private static final String SQL_SEARCH_QNAME_STATUS = "SELECT * FROM TASKS WHERE QUEUE_NAME = #{queueName} AND STATUS = #{status} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY";
     private static final String SQL_COUNT_QNAME_STATUS = "SELECT QUEUE_NAME, STATUS, COUNT(ID) ROWCOUNT FROM TASKS GROUP BY QUEUE_NAME, STATUS ORDER BY QUEUE_NAME, STATUS";
 
@@ -178,8 +178,9 @@ class TaskEntityRepo {
         long start = System.currentTimeMillis();
         OffsetDateTime newNextProcessTime = OffsetDateTime.now();
         String idValues = taskIds.stream().map(Object::toString).collect(Collectors.joining(","));
-        return SqlTemplate.forUpdate(sqlConnection, SQL_RE_ENQUEUE_ERR_BATCH)
-                .execute(Map.of("idList", idValues, "newNextProcessTime", newNextProcessTime))
+        String sql = SQL_RE_ENQUEUE_ERR_BATCH.replace("{idList}", idValues);
+        return SqlTemplate.forUpdate(sqlConnection, sql)
+                .execute(Map.of("newNextProcessTime", newNextProcessTime))
                 .map(SqlResult::rowCount)
                 .onSuccess(updateCount -> log.info("task(s) reenqueueErrorTasks: updateCount={}, taskIds={}, nextProcessTime={}, time={}ms", updateCount, taskIds, newNextProcessTime, System.currentTimeMillis() - start))
                 .onFailure(err -> log.error("task(s) reenqueueErrorTasks failed: taskIds={}, time:{}ms", taskIds, System.currentTimeMillis() - start, err));
