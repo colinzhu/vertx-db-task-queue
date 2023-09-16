@@ -29,4 +29,9 @@ class TaskQueueSupportServiceImpl implements TaskQueueSupportService {
         return taskEntityRepo.searchByQueueNameAndStatus(sqlConnection, queueName, status, batchSize).compose(Future::succeededFuture);
     }
 
+    @Override
+    public Future<List<?>> countGroupByQueueNameAndStatus(SqlConnection sqlConnection) {
+        return taskEntityRepo.countGroupByQueueNameAndStatus(sqlConnection).compose(Future::succeededFuture);
+    }
+
 }

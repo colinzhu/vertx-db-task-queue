@@ -8,6 +8,7 @@ import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.Message;
 import io.vertx.jdbcclient.JDBCPool;
+import io.vertx.sqlclient.SqlConnection;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -23,20 +24,26 @@ public class PaymentCheckTaskProcessor implements Function<Task<Payment>, Future
 
     @Override
     public Future<Integer> apply(Task<Payment> task) {
-        log.info("Test get payment id: {} ", task.getPayload().getId());
-        // do some blocking task OUTSIDE of transaction, e.g. call HTTP API
-        return pool.withTransaction(conn -> {
-            // do something with DB, e.g. update business entity table
-            Promise<Integer> promise = Promise.promise();
-            vertx.setTimer(RandomGenerator.getDefault().nextInt(1, 1000), id -> {
-                log.info("[taskId:{}] Process completed. Payload:{}", task.getId(), task.getPayload());
-                promise.complete();
-            });
-            return promise.future()
-                    .compose(res -> taskQueueService.finish(conn, task.getId()));
-                    //.compose(res -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(1)));
-        });
+        return doSomething(task)
+                .compose(payment -> pool.withTransaction(conn -> persistChanges(conn, payment, task.getId())));
     }
+
+    private Future<Integer> persistChanges(SqlConnection txn, Payment payment, Long taskId) {
+        return txn.query("UPDATE PAYMENT SET STATUS = 'PENDING_RELEASE' WHERE ID = " + payment.getId())
+                .execute()
+                .compose(res -> taskQueueService.finish(txn, taskId));
+    }
+
+    // do some blocking task OUTSIDE the DB transaction, e.g. call HTTP API
+    private Future<Payment> doSomething(Task<Payment> task) {
+        Promise<Payment> promise = Promise.promise();
+        vertx.setTimer(RandomGenerator.getDefault().nextInt(1, 1000), id -> {
+            log.info("[taskId:{}] doSomething completed. Payload:{}", task.getId(), task.getPayload());
+            promise.complete(task.getPayload());
+        });
+        return promise.future();
+    }
+
 
     @Override
     public void handle(Message<Task<Payment>> message) {

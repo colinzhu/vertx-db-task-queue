@@ -1,6 +1,7 @@
 package io.github.colinzhu.taskqueue;
 
 import io.vertx.core.Future;
+import io.vertx.core.json.JsonObject;
 import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.SqlConnection;
@@ -39,8 +40,10 @@ class TaskEntityRepo {
     // below for support only
     private static final String SQL_RE_ENQUEUE_ERR_BATCH = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID IN (#{idList}) AND STATUS = 'ERROR'";
     private static final String SQL_SEARCH_QNAME_STATUS = "SELECT * FROM TASKS WHERE QUEUE_NAME = #{queueName} AND STATUS = #{status} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY";
+    private static final String SQL_COUNT_QNAME_STATUS = "SELECT QUEUE_NAME, STATUS, COUNT(ID) ROWCOUNT FROM TASKS GROUP BY QUEUE_NAME, STATUS ORDER BY QUEUE_NAME, STATUS";
 
     Future<TaskEntity> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
+        long start = System.currentTimeMillis();
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime nextProcessTime = now.plus(processDelay);
         return SqlTemplate.forUpdate(sqlConnection, SQL_INSERT)
@@ -60,8 +63,8 @@ class TaskEntityRepo {
                         now,
                         payload
                 ))
-                .onSuccess(task -> log.info("task inserted: {}, processDelay={}", task, processDelay))
-                .onFailure(err -> log.info("task insert failed: queue={}, refNumber={}", queueName, refNumber, err));
+                .onSuccess(task -> log.info("task inserted: {}, processDelay={}, time={}ms", task, processDelay, System.currentTimeMillis() - start))
+                .onFailure(err -> log.info("task insert failed: queue={}, refNumber={}, time={}ms", queueName, refNumber, System.currentTimeMillis() - start, err));
     }
 
     Future<Integer> delete(SqlConnection sqlConnection, long taskId) {
@@ -101,30 +104,29 @@ class TaskEntityRepo {
     }
 
     Future<List<TaskEntity>> checkout(SqlConnection sqlConnection, String queueName, int batchSize, Duration nextProcessDelay) {
-        var taskList = selectTasks(sqlConnection, queueName, batchSize);
+        var taskList = checkoutSelect(sqlConnection, queueName, batchSize);
         return taskList
-                .compose(records -> checkout(sqlConnection, records.stream().map(TaskEntity::getId).collect(Collectors.toList()), nextProcessDelay))
+                .compose(records -> checkoutUpdate(sqlConnection, records.stream().map(TaskEntity::getId).collect(Collectors.toList()), nextProcessDelay))
                 .map(records -> taskList.result())
                 .onFailure(err -> log.error("task checkout failed: queue={}", queueName, err));
     }
 
-
-    private Future<List<TaskEntity>> selectTasks(SqlConnection sqlConnection, String queueName, int batchSize) {
+    private Future<List<TaskEntity>> checkoutSelect(SqlConnection sqlConnection, String queueName, int batchSize) {
         long start = System.currentTimeMillis();
         return SqlTemplate.forQuery(sqlConnection, SQL_SELECT_FOR_UPDATE)
                 .execute(Map.of("queueName", queueName, "batchSize", batchSize))
-                .onFailure(err -> log.error("task select failed: queue={}, time={}ms", queueName, System.currentTimeMillis() - start, err))
+                .onFailure(err -> log.error("task checkoutSelect failed: queue={}, time={}ms", queueName, System.currentTimeMillis() - start, err))
                 .map(rows -> {
                     List<TaskEntity> records = new ArrayList<>();
                     rows.forEach(row -> records.add(mapRowToTaskEntity(row)));
                     if (rows.size() > 0) {
-                        log.debug("task selected: queue={}, count={}, taskIdList={}, time={}ms", queueName, records.size(), records.stream().map(TaskEntity::getId).collect(Collectors.toList()), System.currentTimeMillis() - start);
+                        log.debug("task checkoutSelect: queue={}, count={}, taskIdList={}, time={}ms", queueName, records.size(), records.stream().map(TaskEntity::getId).collect(Collectors.toList()), System.currentTimeMillis() - start);
                     }
                     return records;
                 });
     }
 
-    private Future<Integer> checkout(SqlConnection sqlConnection, List<Long> taskIdList, Duration nextProcessDelay) {
+    private Future<Integer> checkoutUpdate(SqlConnection sqlConnection, List<Long> taskIdList, Duration nextProcessDelay) {
         long start = System.currentTimeMillis();
         Future<Integer> future;
         if (taskIdList.isEmpty()) {
@@ -138,14 +140,18 @@ class TaskEntityRepo {
                     .map(SqlResult::rowCount)
                     .map(updateCount -> {
                         if (0 == updateCount) {
-                            throw new IllegalStateException(String.format("task checkout failed: updateCount=0, expected=%d, taskIdList=%s ", taskIdList.size(), idValues));
+                            throw new IllegalStateException(String.format("task checkoutUpdate failed: updateCount=0, expected=%d, taskIdList=%s ", taskIdList.size(), idValues));
                         } else {
                             return updateCount;
                         }
                     });
         }
         return future
-                .onSuccess(updateCount -> log.debug("task checkout updated: count={}, taskIdList={}, time={}ms", updateCount, taskIdList, System.currentTimeMillis() - start));
+                .onSuccess(updateCount -> {
+                    if (updateCount > 0) {
+                        log.debug("task checkoutUpdate updated: count={}, taskIdList={}, time={}ms", updateCount, taskIdList, System.currentTimeMillis() - start);
+                    }
+                });
                 //.onFailure(err -> log.error("taskIdList:{} checkout - failed, time:{}ms", taskIdList, System.currentTimeMillis() - start, err));
     }
 
@@ -188,18 +194,41 @@ class TaskEntityRepo {
                     List<TaskEntity> records = new ArrayList<>();
                     rows.forEach(row -> records.add(mapRowToTaskEntity(row)));
                     if (rows.size() > 0) {
-                        log.debug("task searchByQueueNameAndStatus: queue={}, status={}, count={}, time={}ms", queueName, status, records.size(), System.currentTimeMillis() - start);
+                        log.info("task searchByQueueNameAndStatus: queue={}, status={}, count={}, time={}ms", queueName, status, records.size(), System.currentTimeMillis() - start);
                     }
                     return records;
                 })
                 .onFailure(err -> log.error("task searchByQueueNameAndStatus failed: queue={}, status={}, time={}ms", queueName, status, System.currentTimeMillis() - start, err));
     }
 
+    // for support only
+    Future<List<JsonObject>> countGroupByQueueNameAndStatus(SqlConnection sqlConnection) {
+        long start = System.currentTimeMillis();
+        return sqlConnection.query(SQL_COUNT_QNAME_STATUS)
+                .execute()
+                .map(rows -> {
+                    List<JsonObject> records = new ArrayList<>();
+                    rows.forEach(row -> records.add(mapRowToCountRecord(row)));
+                    if (rows.size() > 0) {
+                        log.info("task searchByQueueNameAndStatus: count={}, time={}ms", records.size(), System.currentTimeMillis() - start);
+                    }
+                    return records;
+                })
+                .onFailure(err -> log.error("task searchByQueueNameAndStatus failed: time={}ms", System.currentTimeMillis() - start, err));
+    }
+    private static JsonObject mapRowToCountRecord(Row row) {
+        JsonObject json = new JsonObject();
+        json.put("queueName", row.getString("QUEUE_NAME"));
+        json.put("status", row.getString("STATUS"));
+        json.put("count", row.getLong("ROWCOUNT"));
+        return json;
+    }
+
     private static TaskEntity mapRowToTaskEntity(Row row) {
         return TaskEntity.builder()
                 .id(row.getLong("ID"))
                 .referenceNumber(row.getString("REFERENCE_NUMBER"))
-                .queueName(row.getString("REFERENCE_NUMBER"))
+                .queueName(row.getString("QUEUE_NAME"))
                 .status(row.getString("STATUS"))
                 .attempt(row.getLong("ATTEMPT"))
                 .createTime(row.getOffsetDateTime("CREATE_TIME"))

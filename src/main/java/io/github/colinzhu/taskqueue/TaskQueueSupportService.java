@@ -14,4 +14,6 @@ public interface TaskQueueSupportService {
     Future<Integer> reprocessErrorTasks(SqlConnection sqlConnection, Set<Long> taskIds);
 
     Future<List<?>> searchByQueueNameAndStatus(SqlConnection sqlConnection, String queueName, String status, int batchSize);
+
+    Future<List<?>> countGroupByQueueNameAndStatus(SqlConnection sqlConnection);
 }

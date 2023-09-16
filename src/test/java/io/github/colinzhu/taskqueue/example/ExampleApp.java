@@ -21,9 +21,9 @@ public class ExampleApp {
     @SneakyThrows
     public static void main(String[] args) {
         setLogLevel(ROOT_LOGGER_NAME, Level.INFO);
-        setLogLevel("com.mchange.v2.resourcepool.BasicResourcePool", Level.INFO);
+        setLogLevel("com.mchange.v2.resourcepool.BasicResourcePool", Level.DEBUG);
         setLogLevel("io.github.colinzhu.taskqueue", Level.INFO);
-        setLogLevel("io.github.colinzhu.taskqueue.TaskEntityRepo", Level.INFO);
+        setLogLevel("io.github.colinzhu.taskqueue.TaskEntityRepo", Level.DEBUG);
         setLogLevel(PaymentCheckTaskProcessor.class.getName(), Level.INFO);
 
         Vertx vertx = Vertx.vertx();
