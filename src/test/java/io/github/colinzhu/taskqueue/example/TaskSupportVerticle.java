@@ -60,7 +60,7 @@ public class TaskSupportVerticle extends AbstractVerticle {
                 http://localhost:#{port}/support/taskqueue/web/
                                 """;
 
-        server.requestHandler(router).listen(0)
+        server.requestHandler(router).listen(31111)
                 .onSuccess(httpServer -> log.info(logMsg.replace("#{port}", String.valueOf(httpServer.actualPort()))))
                 .onFailure(err -> log.error("failed to start task queue support.", err));
     }

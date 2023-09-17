@@ -32,7 +32,7 @@ public class PaymentCreateVerticle extends AbstractVerticle {
         HttpServer server = vertx.createHttpServer();
         Router router = Router.router(vertx);
         router.route("/create/:count").handler(this::handleRouting);
-        server.requestHandler(router).listen(0)
+        server.requestHandler(router).listen(31110)
                 .onSuccess(httpServer -> log.info("payment create server started. http://localhost:{}/create/1", httpServer.actualPort()))
                 .onFailure(err -> log.error("failed to start payment create server.", err));
     }

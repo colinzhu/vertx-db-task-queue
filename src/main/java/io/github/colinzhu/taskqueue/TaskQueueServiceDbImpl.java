@@ -47,7 +47,7 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
 
     @Override
     public Future<Integer> finish(SqlConnection sqlConnection, long taskId) {
-        return taskEntityRepo.delete(sqlConnection, taskId);
+        return taskEntityRepo.finish(sqlConnection, taskId);
     }
 
     @Override

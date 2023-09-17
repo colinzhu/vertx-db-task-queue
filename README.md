@@ -48,3 +48,4 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] support API: ERROR -> POISON
 - [x] support API: POISON -> ERROR
 - [x] support API: housekeep POISON (only task older than x weeks)
+- [x] handle concurrent update task case

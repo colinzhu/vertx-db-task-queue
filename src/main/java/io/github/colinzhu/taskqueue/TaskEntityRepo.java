@@ -27,13 +27,13 @@ class TaskEntityRepo {
     }
 
     private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, PAYLOAD, REFERENCE_NUMBER, NEXT_PROCESS_TIME) VALUES (#{queueName}, 'CREATED', #{payload}, #{refNumber}, #{nextProcessTime})";
-    private static final String SQL_DELETE = "DELETE TASKS WHERE ID = #{id}";
+    private static final String SQL_FINISH = "DELETE TASKS WHERE ID = #{id} AND STATUS = 'PROCESSING'"; // only delete status in PROCESSING, in case updated by other already
     private static final String SQL_UPDATE_STATUS = "UPDATE TASKS SET STATUS = #{status} WHERE ID = #{id}";
     private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE ID IN (SELECT ID FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= CURRENT_TIMESTAMP() ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY) FOR UPDATE SKIP LOCKED";
 //    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= CURRENT_TIMESTAMP() AND ROWNUM <= #{batchSize} FOR UPDATE SKIP LOCKED";
 //    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= CURRENT_TIMESTAMP() ORDER BY NEXT_PROCESS_TIME, ID FETCH FIRST #{batchSize} ROWS ONLY FOR UPDATE SKIP LOCKED";
     private static final String SQL_CHECK_OUT = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID IN ({idList})";
-    private static final String SQL_RE_ENQUEUE = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID = #{id}";
+    private static final String SQL_RE_ENQUEUE = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID = #{id} AND STATUS = 'PROCESSING'";
 
     Future<TaskEntity> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
         long start = System.currentTimeMillis();
@@ -60,14 +60,14 @@ class TaskEntityRepo {
                 .onFailure(err -> log.info("task insert failed: queue={}, refNumber={}, time={}ms", queueName, refNumber, System.currentTimeMillis() - start, err));
     }
 
-    Future<Integer> delete(SqlConnection sqlConnection, long taskId) {
+    Future<Integer> finish(SqlConnection sqlConnection, long taskId) {
         long start = System.currentTimeMillis();
-        return SqlTemplate.forUpdate(sqlConnection, SQL_DELETE)
+        return SqlTemplate.forUpdate(sqlConnection, SQL_FINISH)
                 .execute(Map.of("id", taskId))
                 .map(SqlResult::rowCount)
                 .map(deleteCount -> {
                     if (0 == deleteCount) {
-                        throw new IllegalStateException(String.format("task delete failed: taskId=%s, deleteCount=0, expected=1, maybe already deleted by another poller.", taskId));
+                        throw new IllegalStateException(String.format("task delete failed: taskId=%s, deleteCount=0, expected=1, maybe already updated/deleted by another poller.", taskId));
                     } else {
                         return deleteCount;
                     }
@@ -86,7 +86,7 @@ class TaskEntityRepo {
                 .map(SqlResult::rowCount)
                 .map(updateCount -> {
                     if (0 == updateCount) {
-                        throw new IllegalStateException(String.format("task update failed: taskId=%s, toStatus=%s, updateCount=0, expected=1, maybe already deleted by another poller.", taskId, status));
+                        throw new IllegalStateException(String.format("task update failed: taskId=%s, toStatus=%s, updateCount=0, expected=1, maybe already updated/deleted by another poller.", taskId, status));
                     } else {
                         return updateCount;
                     }
@@ -154,7 +154,7 @@ class TaskEntityRepo {
                 .map(SqlResult::rowCount)
                 .map(updateCount -> {
                     if (0 == updateCount) {
-                        throw new IllegalStateException(String.format("task reenqueue failed: taskId=%s, nextProcessTime=%s, updateCount=0. expected=1, maybe already deleted by another poller.", taskId, newNextProcessTime));
+                        throw new IllegalStateException(String.format("task reenqueue failed: taskId=%s, nextProcessTime=%s, updateCount=0. expected=1, maybe already updated/deleted by another poller.", taskId, newNextProcessTime));
                     } else {
                         return updateCount;
                     }
