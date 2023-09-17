@@ -42,7 +42,7 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
             return Future.failedFuture(e);
         }
         return taskEntityRepo.insert(sqlConnection, queueName, refNumber, payloadStr, processDelay)
-                .map(taskEntity -> new Task<>(taskEntity.getId(), payload));
+                .map(taskEntity -> new Task<>(taskEntity.getId(), taskEntity.getAttempt() + 1, payload));
     }
 
     @Override

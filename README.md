@@ -39,7 +39,7 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] reenqueue - done
 - [x] junit - done
 - [ ] micrometer - create_time -> delete_time, checkout_time -> delete_time
-- [ ] expose ATTEMPT in Task?
+- [x] expose ATTEMPT in Task
 - [ ] test: when 2 instances, 1 is down but with checked-out tasks in progress, the 2nd instance will continue to process
 - [x] support API: searchByQueueNameAndStatus
 - [x] support API: reprocessErrorTasks 

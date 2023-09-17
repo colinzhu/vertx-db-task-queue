@@ -128,6 +128,7 @@ public class TaskPoller<T> {
         try {
             return new Task<>(
                     taskEntity.getId(),
+                    taskEntity.getAttempt() + 1,
                     objectMapper.readValue(taskEntity.getPayload(), config.getPayloadClass())
             );
         } catch (JsonProcessingException e) {
