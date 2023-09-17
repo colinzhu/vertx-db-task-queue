@@ -25,6 +25,11 @@ class TaskQueueSupportServiceImpl implements TaskQueueSupportService {
     }
 
     @Override
+    public Future<Integer> markPoison(SqlConnection sqlConnection, Set<Long> taskIds) {
+        return taskEntityRepo.updateStatusFromToBatch(sqlConnection, taskIds, "ERROR", "POISON");
+    }
+
+    @Override
     public Future<List<?>> searchByQueueNameAndStatus(SqlConnection sqlConnection, String queueName, String status, int batchSize) {
         return taskEntityRepo.searchByQueueNameAndStatus(sqlConnection, queueName, status, batchSize).compose(Future::succeededFuture);
     }

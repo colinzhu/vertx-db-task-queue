@@ -41,6 +41,7 @@ class TaskEntityRepo {
     private static final String SQL_RE_ENQUEUE_ERR_BATCH = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID IN ({idList}) AND STATUS = 'ERROR'";
     private static final String SQL_SEARCH_QNAME_STATUS = "SELECT * FROM TASKS WHERE QUEUE_NAME = #{queueName} AND STATUS = #{status} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY";
     private static final String SQL_COUNT_QNAME_STATUS = "SELECT QUEUE_NAME, STATUS, COUNT(ID) ROWCOUNT FROM TASKS GROUP BY QUEUE_NAME, STATUS ORDER BY QUEUE_NAME, STATUS";
+    private static final String SQL_UPDATE_STATUS_BATCH = "UPDATE TASKS SET STATUS = #{toStatus} WHERE ID IN ({idList}) AND STATUS = #{fromStatus}";
 
     Future<TaskEntity> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
         long start = System.currentTimeMillis();
@@ -182,6 +183,18 @@ class TaskEntityRepo {
                 .onFailure(err -> log.error("task(s) reenqueueErrorTasks failed: taskIds={}, time:{}ms", taskIds, System.currentTimeMillis() - start, err));
     }
 
+    // only for support
+    Future<Integer> updateStatusFromToBatch(SqlConnection sqlConnection, Set<Long> taskIds, String fromStatus, String toStatus) {
+        long start = System.currentTimeMillis();
+        String idValues = taskIds.stream().map(Object::toString).collect(Collectors.joining(","));
+        String sql = SQL_UPDATE_STATUS_BATCH.replace("{idList}", idValues);
+        return SqlTemplate.forUpdate(sqlConnection, sql)
+                .execute(Map.of("fromStatus", fromStatus, "toStatus", toStatus))
+                .map(SqlResult::rowCount)
+                .onSuccess(sqlResult -> log.info("task updateStatusFromToBatch: taskId={}, fromStatus={}, toStatus={}, time={}ms", taskIds, fromStatus, toStatus, System.currentTimeMillis() - start))
+                .onFailure(err -> log.error("task(s) updateStatusFromToBatch failed: taskIds={}, time:{}ms", taskIds, System.currentTimeMillis() - start, err));
+    }
+
     // for support only
     Future<List<TaskEntity>> searchByQueueNameAndStatus(SqlConnection sqlConnection, String queueName, String status, int batchSize) {
         long start = System.currentTimeMillis();
@@ -213,6 +226,7 @@ class TaskEntityRepo {
                 })
                 .onFailure(err -> log.error("task searchByQueueNameAndStatus failed: time={}ms", System.currentTimeMillis() - start, err));
     }
+
     private static JsonObject mapRowToCountRecord(Row row) {
         JsonObject json = new JsonObject();
         json.put("queueName", row.getString("QUEUE_NAME"));

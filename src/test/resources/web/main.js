@@ -3,6 +3,7 @@
 const URL_COUNT = "../api/count";
 const URL_SEARCH = "../api/search";
 const URL_REENQUEUE = "../api/reenqueue";
+const URL_MARK_POISON = "../api/markpoison";
 
 async function showCountTable() {
     const resp = await fetch(URL_COUNT);
@@ -48,18 +49,18 @@ async function showListTable() {
     });
     return table;
 }
-async function reprocessSelected(listTable, countTable) {
+async function processSelected(listTable, countTable, batchUpdateUrl) {
     const selectedData = listTable.getSelectedData();
     if (selectedData.length == 0) {
         console.log("nothing selected");
         return;
     }
     const idList = selectedData.map(row => row.id);
-    if (!confirm("number of records to be reprocessed:" + idList.length)) {
+    if (!confirm("number of records to be processed:" + idList.length)) {
         return;
     }
     console.log("taskIdList:", idList);
-    const resp = await fetch('../api/reenqueue', {
+    const resp = await fetch(batchUpdateUrl, {
         method: 'POST',
         body: JSON.stringify(idList),
         headers: {
@@ -72,8 +73,8 @@ async function reprocessSelected(listTable, countTable) {
         return;
     }
     const jsonData = await resp.json()
-    console.log("reprocess response:", jsonData);
-    alert("number of records reprocessed:" + jsonData.count);
+    console.log("process response:", jsonData);
+    alert("number of records processed:" + jsonData.count);
 
     // refresh list table
     listTable.replaceData(listTable.getAjaxUrl());
@@ -86,8 +87,8 @@ const listTable = await showListTable();
 
 countTable.on("rowClick", function (e, row) {
     const data = row.getData();
-    console.log("selected: " + data);
-    listTable.replaceData("../api/search/" + data.queueName + "/" + data.status);
+    console.log("selected:", data);
+    listTable.replaceData(URL_SEARCH + "/" + data.queueName + "/" + data.status);
 });
 
 document.getElementById("btn-refresh").onclick = function(e) {
@@ -98,8 +99,12 @@ document.getElementById("btn-refresh").onclick = function(e) {
      }
 }
 
-document.getElementById("btn-reprocess-selected").onclick = function (e) {
-    reprocessSelected(listTable, countTable);
+document.getElementById("btn-reenqueue-selected").onclick = function (e) {
+    processSelected(listTable, countTable, URL_REENQUEUE);
+};
+
+document.getElementById("btn-markpoison-selected").onclick = function (e) {
+    processSelected(listTable, countTable, URL_MARK_POISON);
 };
 
 // for browser debug
