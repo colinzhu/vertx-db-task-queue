@@ -6,6 +6,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -32,6 +33,11 @@ class TaskQueueSupportServiceImpl implements TaskQueueSupportService {
     @Override
     public Future<Integer> poisonToError(SqlConnection sqlConnection, Set<Long> taskIds) {
         return supportRepo.updateStatusFromToBatch(sqlConnection, taskIds, "POISON", "ERROR");
+    }
+
+    @Override
+    public Future<Integer> housekeepPoison(SqlConnection sqlConnection, Set<Long> taskIds, OffsetDateTime createTimeBefore) {
+        return supportRepo.housekeepPoison(sqlConnection, taskIds, createTimeBefore);
     }
 
     @Override

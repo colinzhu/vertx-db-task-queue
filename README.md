@@ -44,8 +44,7 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] support API: searchByQueueNameAndStatus
 - [x] support API: reprocessErrorTasks 
 - [x] support API: countGroupByQueueNameAndStatus
-- [ ] support API: mark as STOPPED
 - [x] support API: rename reprocess to reenqueue
 - [x] support API: ERROR -> POISON
-- [ ] support API: POISON -> ERROR
-- [ ] support API: delete POISON (only task older than x weeks)
+- [x] support API: POISON -> ERROR
+- [x] support API: housekeep POISON (only task older than x weeks)

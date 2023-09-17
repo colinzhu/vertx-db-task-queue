@@ -18,6 +18,8 @@ import io.vertx.ext.web.handler.StaticHandler;
 import io.vertx.jdbcclient.JDBCPool;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -43,6 +45,7 @@ public class TaskSupportVerticle extends AbstractVerticle {
         router.route("/support/taskqueue/api/reenqueue").handler(this::reenqueue);
         router.route("/support/taskqueue/api/mark-poison").handler(this::markPoison);
         router.route("/support/taskqueue/api/poison-to-error").handler(this::poisonToError);
+        router.route("/support/taskqueue/api/housekeep-poison").handler(this::housekeepPoison);
         router.route("/support/taskqueue/api/search/:queueName/:status").handler(this::search);
         router.route("/support/taskqueue/api/count").handler(this::count);
 
@@ -51,6 +54,7 @@ public class TaskSupportVerticle extends AbstractVerticle {
                 http://localhost:#{port}/support/taskqueue/api/reenqueue
                 http://localhost:#{port}/support/taskqueue/api/mark-poison
                 http://localhost:#{port}/support/taskqueue/api/poison-to-error
+                http://localhost:#{port}/support/taskqueue/api/housekeep-poison
                 http://localhost:#{port}/support/taskqueue/api/search/payment.check/CREATED?size=5
                 http://localhost:#{port}/support/taskqueue/api/count
                 http://localhost:#{port}/support/taskqueue/web/
@@ -84,6 +88,16 @@ public class TaskSupportVerticle extends AbstractVerticle {
         Future.succeededFuture()
                 .map(any -> routingContext.body().asJsonArray().stream().map(Object::toString).map(Long::valueOf).collect(Collectors.toSet()))
                 .compose(idList -> pool.withConnection(conn -> taskQueueSupportService.poisonToError(conn, idList)))
+                .onSuccess(res -> routingContext.response().end(Json.encode(Map.of("count", res))))
+                .onFailure(err -> routingContext.response().setStatusCode(500).end(Json.encode(Map.of("reason", "error"))));
+    }
+
+    private void housekeepPoison(RoutingContext routingContext) {
+        log.info("housekeepPoison request body:{}", routingContext.body().asString());
+        OffsetDateTime createTimeBefore = OffsetDateTime.now().minus(Duration.ofDays(14));
+        Future.succeededFuture()
+                .map(any -> routingContext.body().asJsonArray().stream().map(Object::toString).map(Long::valueOf).collect(Collectors.toSet()))
+                .compose(idList -> pool.withConnection(conn -> taskQueueSupportService.housekeepPoison(conn, idList, createTimeBefore)))
                 .onSuccess(res -> routingContext.response().end(Json.encode(Map.of("count", res))))
                 .onFailure(err -> routingContext.response().setStatusCode(500).end(Json.encode(Map.of("reason", "error"))));
     }

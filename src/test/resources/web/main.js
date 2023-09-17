@@ -5,6 +5,7 @@ const URL_SEARCH = "../api/search";
 const URL_REENQUEUE = "../api/reenqueue";
 const URL_MARK_POISON = "../api/mark-poison";
 const URL_POISON_TO_ERROR = "../api/poison-to-error";
+const URL_HOUSEKEEP_POISON = "../api/housekeep-poison";
 
 async function showCountTable() {
     const resp = await fetch(URL_COUNT);
@@ -114,6 +115,10 @@ document.getElementById("btn-markpoison-selected").onclick = function (e) {
 
 document.getElementById("btn-poisontoerror-selected").onclick = function (e) {
     processSelected(listTable, countTable, URL_POISON_TO_ERROR);
+};
+
+document.getElementById("btn-housekeeppoison-selected").onclick = function (e) {
+    processSelected(listTable, countTable, URL_HOUSEKEEP_POISON);
 };
 
 // for browser debug
