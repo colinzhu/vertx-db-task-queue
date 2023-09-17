@@ -15,7 +15,7 @@ async function showCountTable() {
         layout: "fitDataStretch",
         columns: [
             { title: "queueName", field: "queueName" },
-            { title: "status", field: "status" },
+            { title: "status", field: "status", width:200},
             { title: "count", field: "count", sorter: "number" },
         ],
     });
