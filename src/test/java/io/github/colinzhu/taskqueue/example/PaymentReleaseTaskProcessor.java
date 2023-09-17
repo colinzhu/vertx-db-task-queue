@@ -33,7 +33,7 @@ public class PaymentReleaseTaskProcessor implements Function<Task<Payment>, Futu
         return txn.query("UPDATE PAYMENT SET STATUS = 'RELEASED' WHERE ID = " + payment.getId())
                 .execute()
                 .compose(res -> {
-                    if (task.getAttempt() >= 3) {
+                    if (task.getAttempt() >= 2) {
                         return taskQueueService.finish(txn, task.getId());
                     } else {
                         return taskQueueService.reenqueue(txn, task.getId(), Duration.ofSeconds(task.getAttempt()));
@@ -44,7 +44,7 @@ public class PaymentReleaseTaskProcessor implements Function<Task<Payment>, Futu
     // do some blocking task OUTSIDE the DB transaction, e.g. call HTTP API
     private Future<Payment> doSomething(Task<Payment> task) {
         Promise<Payment> promise = Promise.promise();
-        vertx.setTimer(RandomGenerator.getDefault().nextInt(1, 2000), id -> {
+        vertx.setTimer(RandomGenerator.getDefault().nextInt(1, 100), id -> {
             log.info("[taskId:{}] doSomething release completed. Attempt={}. Payload:{}", task.getId(), task.getAttempt(), task.getPayload());
             promise.complete(task.getPayload());
         });

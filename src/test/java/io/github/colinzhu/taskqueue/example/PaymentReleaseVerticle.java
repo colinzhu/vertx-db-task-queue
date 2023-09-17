@@ -14,17 +14,16 @@ import java.time.Duration;
 @Slf4j
 @RequiredArgsConstructor
 public class PaymentReleaseVerticle extends AbstractVerticle {
-    private JDBCPool pool;
     private TaskPoller<Payment> poller;
     @Override
     public void start() {
-        pool = H2Database.getJdbcPool(vertx, false); // TODO check if pool is shared
+        JDBCPool pool = H2Database.getJdbcPool(vertx, false); // TODO check if pool is shared
 
         // prepare a taskProcessor
         PaymentReleaseTaskProcessor taskProcessor = new PaymentReleaseTaskProcessor(vertx, pool);
 
         // register taskProcessor to poller
-        PollConfig<Payment> pollConfig = PollConfig.<Payment>builder().queueName("payment.release").batchSize(5).nextProcessDelay(Duration.ofMinutes(10)).taskProcessor(taskProcessor).payloadClass(Payment.class).build();
+        PollConfig<Payment> pollConfig = PollConfig.<Payment>builder().queueName("payment.release").batchSize(10).nextProcessDelay(Duration.ofMinutes(10)).taskProcessor(taskProcessor).payloadClass(Payment.class).build();
         poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
 

@@ -29,11 +29,11 @@ class TaskEntityRepo {
     private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, PAYLOAD, REFERENCE_NUMBER, NEXT_PROCESS_TIME) VALUES (#{queueName}, 'CREATED', #{payload}, #{refNumber}, #{nextProcessTime})";
     private static final String SQL_FINISH = "DELETE TASKS WHERE ID = #{id} AND STATUS = 'PROCESSING'"; // only delete status in PROCESSING, in case updated by other already
     private static final String SQL_UPDATE_STATUS = "UPDATE TASKS SET STATUS = #{status} WHERE ID = #{id}";
-    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE ID IN (SELECT ID FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= CURRENT_TIMESTAMP() ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY) FOR UPDATE SKIP LOCKED";
-//    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= CURRENT_TIMESTAMP() AND ROWNUM <= #{batchSize} FOR UPDATE SKIP LOCKED";
-//    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= CURRENT_TIMESTAMP() ORDER BY NEXT_PROCESS_TIME, ID FETCH FIRST #{batchSize} ROWS ONLY FOR UPDATE SKIP LOCKED";
-    private static final String SQL_CHECK_OUT = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID IN ({idList})";
-    private static final String SQL_RE_ENQUEUE = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID = #{id} AND STATUS = 'PROCESSING'";
+    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE ID IN (SELECT ID FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY) FOR UPDATE SKIP LOCKED";
+//    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} AND ROWNUM <= #{batchSize} FOR UPDATE SKIP LOCKED";
+//    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME, ID FETCH FIRST #{batchSize} ROWS ONLY FOR UPDATE SKIP LOCKED";
+    private static final String SQL_CHECK_OUT = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE ID IN ({idList})";
+    private static final String SQL_RE_ENQUEUE = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE ID = #{id} AND STATUS = 'PROCESSING'";
 
     Future<TaskEntity> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
         long start = System.currentTimeMillis();
@@ -105,13 +105,13 @@ class TaskEntityRepo {
     private Future<List<TaskEntity>> checkoutSelect(SqlConnection sqlConnection, String queueName, int batchSize) {
         long start = System.currentTimeMillis();
         return SqlTemplate.forQuery(sqlConnection, SQL_SELECT_FOR_UPDATE)
-                .execute(Map.of("queueName", queueName, "batchSize", batchSize))
+                .execute(Map.of("now", OffsetDateTime.now(), "queueName", queueName, "batchSize", batchSize))
                 .onFailure(err -> log.error("task checkoutSelect failed: queue={}, time={}ms", queueName, System.currentTimeMillis() - start, err))
                 .map(rows -> {
                     List<TaskEntity> records = new ArrayList<>();
                     rows.forEach(row -> records.add(mapRowToTaskEntity(row)));
                     if (rows.size() > 0) {
-                        log.debug("task checkoutSelect: queue={}, count={}, taskIdList={}, time={}ms", queueName, records.size(), records.stream().map(TaskEntity::getId).collect(Collectors.toList()), System.currentTimeMillis() - start);
+                        log.debug("task checkoutSelect: queue={}, count={}, taskIdAndLastUpdateTimeList={}, time={}ms", queueName, records.size(), records.stream().map(entity -> entity.getId() + "_" + entity.getLastUpdateTime()).collect(Collectors.toList()), System.currentTimeMillis() - start);
                     }
                     return records;
                 });
@@ -127,7 +127,7 @@ class TaskEntityRepo {
             String sql = SQL_CHECK_OUT.replace("{idList}", idValues);
             OffsetDateTime newNextProcessTime = OffsetDateTime.now().plusSeconds(nextProcessDelay.getSeconds());
             future = SqlTemplate.forUpdate(sqlConnection, sql)
-                    .execute(Map.of("newNextProcessTime", newNextProcessTime))
+                    .execute(Map.of("now", OffsetDateTime.now(), "newNextProcessTime", newNextProcessTime))
                     .map(SqlResult::rowCount)
                     .map(updateCount -> {
                         if (0 == updateCount) {
@@ -148,9 +148,10 @@ class TaskEntityRepo {
 
     Future<Integer> reenqueue(SqlConnection sqlConnection, Long taskId, Duration nextProcessDelay) {
         long start = System.currentTimeMillis();
-        OffsetDateTime newNextProcessTime = OffsetDateTime.now().plusSeconds(nextProcessDelay.getSeconds());
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime newNextProcessTime = now.plusSeconds(nextProcessDelay.getSeconds());
         return SqlTemplate.forUpdate(sqlConnection, SQL_RE_ENQUEUE)
-                .execute(Map.of("id", taskId, "newNextProcessTime", newNextProcessTime))
+                .execute(Map.of("id", taskId, "now", now, "newNextProcessTime", newNextProcessTime))
                 .map(SqlResult::rowCount)
                 .map(updateCount -> {
                     if (0 == updateCount) {

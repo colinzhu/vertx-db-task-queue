@@ -26,6 +26,13 @@ public class PaymentCheckTaskProcessor implements Function<Task<Payment>, Future
     @Override
     public Future<?> apply(Task<Payment> task) {
         return doSomething(task)
+                .compose(payment -> {
+                    if (RandomGenerator.getDefault().nextInt(1, 10) == 7) {
+                        return Future.failedFuture("Simulate error e.g. after retry still fail case.");
+                    } else {
+                        return Future.succeededFuture(payment);
+                    }
+                })
                 .compose(payment -> pool.withTransaction(conn -> persistChanges(conn, payment, task)));
     }
 
@@ -46,7 +53,7 @@ public class PaymentCheckTaskProcessor implements Function<Task<Payment>, Future
     // do some blocking task OUTSIDE the DB transaction, e.g. call HTTP API
     private Future<Payment> doSomething(Task<Payment> task) {
         Promise<Payment> promise = Promise.promise();
-        vertx.setTimer(RandomGenerator.getDefault().nextInt(1, 2000), id -> {
+        vertx.setTimer(RandomGenerator.getDefault().nextInt(1, 100), id -> {
             log.info("[taskId:{}] doSomething check completed. Attempt={}. Payload:{}", task.getId(), task.getAttempt(), task.getPayload());
             promise.complete(task.getPayload());
         });
