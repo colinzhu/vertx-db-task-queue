@@ -79,7 +79,7 @@ class TaskEntityRepo {
         return updateStatus(sqlConnection, taskId, "ERROR");
     }
 
-    private Future<Integer> updateStatus(SqlConnection sqlConnection, long taskId, String status) {
+    Future<Integer> updateStatus(SqlConnection sqlConnection, long taskId, String status) {
         long start = System.currentTimeMillis();
         return SqlTemplate.forUpdate(sqlConnection, SQL_UPDATE_STATUS)
                 .execute(Map.of("id", taskId, "status", status))

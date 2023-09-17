@@ -33,13 +33,14 @@ public class PaymentCheckTaskProcessor implements Function<Task<Payment>, Future
         return txn.query("UPDATE PAYMENT SET STATUS = 'PENDING_RELEASE' WHERE ID = " + payment.getId())
                 .execute()
                 .compose(res -> {
-                    if (task.getAttempt() >= 5) {
-                        return taskQueueService.finish(txn, task.getId());
+                    if (task.getAttempt() >= 3) {
+                        return taskQueueService.finish(txn, task.getId())
+                                .compose(any -> taskQueueService.enqueue(txn,"payment.release", "REF_" + task.getPayload().getId(), task.getPayload()))
+                                .compose(any -> Future.succeededFuture());
                     } else {
-                        return taskQueueService.reenqueue(txn, task.getId(), Duration.ofSeconds(task.getAttempt()));
+                        return taskQueueService.reenqueue(txn, task.getId(), Duration.ofSeconds(2 + task.getAttempt()));
                     }
-                })
-                .compose(res -> taskQueueService.enqueue(txn,"payment.release", "REF_" + task.getPayload().getId(), task.getPayload()));
+                });
     }
 
     // do some blocking task OUTSIDE the DB transaction, e.g. call HTTP API

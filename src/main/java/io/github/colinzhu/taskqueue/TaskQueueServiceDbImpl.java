@@ -48,6 +48,7 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
     @Override
     public Future<Integer> finish(SqlConnection sqlConnection, long taskId) {
         return taskEntityRepo.finish(sqlConnection, taskId);
+        //return taskEntityRepo.updateStatus(sqlConnection, taskId, "COMPLETED");
     }
 
     @Override
