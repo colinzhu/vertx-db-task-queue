@@ -33,6 +33,7 @@ public class ExampleApp {
                 .onSuccess(tablesCreated -> {
                     Verticle createVerticle = new PaymentCreateVerticle(pool);
                     vertx.deployVerticle(PaymentCheckVerticle.class, new DeploymentOptions().setInstances(2))
+                            .compose(any -> vertx.deployVerticle(PaymentReleaseVerticle.class, new DeploymentOptions().setInstances(2)))
                             .compose(any -> vertx.deployVerticle(createVerticle))
                             .compose(any -> vertx.deployVerticle(new TaskSupportVerticle()))
                             .onFailure(err -> log.error("error", err));
