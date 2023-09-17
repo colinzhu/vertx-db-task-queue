@@ -1,11 +1,14 @@
 //https://tabulator.info/docs/5.5/quickstart#sources-bower
 
+const URL_COUNT = "../api/count";
+const URL_SEARCH = "../api/search";
+const URL_REENQUEUE = "../api/reenqueue";
+
 async function showCountTable() {
-    const resp = await fetch("../count");
+    const resp = await fetch(URL_COUNT);
     const jsonData = await resp.json();
     const table = await new Tabulator("#table-count", {
         data: jsonData,
-        //height: "120px",
         layout: "fitDataStretch",
         //placeholder: "No Data Set",
         columns: [
@@ -56,7 +59,7 @@ async function reprocessSelected(listTable, countTable) {
         return;
     }
     console.log("taskIdList:", idList);
-    const resp = await fetch('../reprocess', {
+    const resp = await fetch('../api/reenqueue', {
         method: 'POST',
         body: JSON.stringify(idList),
         headers: {
@@ -74,7 +77,7 @@ async function reprocessSelected(listTable, countTable) {
 
     // refresh list table
     listTable.replaceData(listTable.getAjaxUrl());
-    countTable.replaceData("../count");
+    countTable.replaceData(URL_COUNT);
 
 }
 
@@ -84,10 +87,17 @@ const listTable = await showListTable();
 countTable.on("rowClick", function (e, row) {
     const data = row.getData();
     console.log("selected: " + data);
-    listTable.replaceData("../search/" + data.queueName + "/" + data.status);
+    listTable.replaceData("../api/search/" + data.queueName + "/" + data.status);
 });
 
-document.getElementById("btn-count").onclick = e => countTable.replaceData("../count");
+document.getElementById("btn-refresh").onclick = function(e) {
+     countTable.replaceData(URL_COUNT);
+     const listTableAjaxUrl = listTable.getAjaxUrl();
+     if (listTableAjaxUrl != null && listTableAjaxUrl != "") {
+        listTable.replaceData(listTableAjaxUrl);
+     }
+}
+
 document.getElementById("btn-reprocess-selected").onclick = function (e) {
     reprocessSelected(listTable, countTable);
 };

@@ -40,15 +40,15 @@ public class TaskSupportVerticle extends AbstractVerticle {
         Router router = Router.router(vertx);
         router.route("/support/taskqueue/web/*").handler(StaticHandler.create(FileSystemAccess.ROOT, "/home/colin/dev/git/vertx-db-task-queue/src/test/resources/web").setCachingEnabled(false));
         router.route().handler(BodyHandler.create());
-        router.route("/support/taskqueue/reprocess").handler(this::reprocess);
-        router.route("/support/taskqueue/search/:queueName/:status").handler(this::search);
-        router.route("/support/taskqueue/count").handler(this::count);
+        router.route("/support/taskqueue/api/reenqueue").handler(this::reenqueue);
+        router.route("/support/taskqueue/api/search/:queueName/:status").handler(this::search);
+        router.route("/support/taskqueue/api/count").handler(this::count);
 
         String logMsg = """
                 task queue support server started.
-                http://localhost:#{port}/support/taskqueue/reprocess
-                http://localhost:#{port}/support/taskqueue/search/payment.check/CREATED?size=5
-                http://localhost:#{port}/support/taskqueue/count
+                http://localhost:#{port}/support/taskqueue/api/reenqueue
+                http://localhost:#{port}/support/taskqueue/api/search/payment.check/CREATED?size=5
+                http://localhost:#{port}/support/taskqueue/api/count
                 http://localhost:#{port}/support/taskqueue/web/
                                 """;
 
@@ -57,11 +57,11 @@ public class TaskSupportVerticle extends AbstractVerticle {
                 .onFailure(err -> log.error("failed to start task queue support.", err));
     }
 
-    private void reprocess(RoutingContext routingContext) {
+    private void reenqueue(RoutingContext routingContext) {
         log.info("reprocess request body:{}", routingContext.body().asString());
         Future.succeededFuture()
                 .map(any -> routingContext.body().asJsonArray().stream().map(Object::toString).map(Long::valueOf).collect(Collectors.toSet()))
-                .compose(idList -> pool.withConnection(conn -> taskQueueSupportService.reprocessErrorTasks(conn, idList)))
+                .compose(idList -> pool.withConnection(conn -> taskQueueSupportService.reenqueueErrorTasks(conn, idList)))
                 .onSuccess(res -> routingContext.response().end(Json.encode(Map.of("count", res))))
                 .onFailure(err -> routingContext.response().setStatusCode(500).end(Json.encode(Map.of("reason", "error"))));
     }

@@ -20,7 +20,7 @@ class TaskQueueSupportServiceImpl implements TaskQueueSupportService {
     }
 
     @Override
-    public Future<Integer> reprocessErrorTasks(SqlConnection sqlConnection, Set<Long> taskIds) {
+    public Future<Integer> reenqueueErrorTasks(SqlConnection sqlConnection, Set<Long> taskIds) {
         return taskEntityRepo.reenqueueErrorTasks(sqlConnection, taskIds);
     }
 

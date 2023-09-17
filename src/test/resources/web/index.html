@@ -1,17 +1,21 @@
 <html lang="html">
+
 <head>
     <title>Task Queue Support</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css"
+        integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
     <link href="https://unpkg.com/tabulator-tables/dist/css/tabulator_bootstrap4.min.css" rel="stylesheet">
     <script type="text/javascript" src="https://unpkg.com/tabulator-tables/dist/js/tabulator.min.js"></script>
     <script type="module" src="main.js"></script>
     <style>
         body {
-            margin:0;
+            margin: 0;
             font-family: arial, sans-serif;
         }
 
-        nav {margin-bottom: 10px;}
+        nav {
+            margin-bottom: 10px;
+        }
 
         button {
             margin: 10px 10px;
@@ -26,13 +30,13 @@
 <body>
     <nav class="navbar navbar-dark bg-dark">
         <span class="navbar-brand mb-0 h1">Task Queue Support</span>
-      </nav>
+    </nav>
 
-        <button id="btn-count" type="button" class="btn btn-primary">refresh count table</button>
-        <div id="table-count"></div>
+    <button id="btn-refresh" type="button" class="btn btn-primary">refresh</button>
+    <div id="table-count"></div>
 
-        <button id="btn-reprocess-selected" type="button" class="btn btn-danger">reprocess selected items</button>
-        <div id="table-list"></div>
+    <button id="btn-reprocess-selected" type="button" class="btn btn-danger">reprocess selected items</button>
+    <div id="table-list"></div>
 </body>
 
 </html>

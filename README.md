@@ -45,4 +45,4 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] support API: reprocessErrorTasks 
 - [x] support API: countGroupByQueueNameAndStatus
 - [ ] support API: mark as STOPPED
-- [ ] support API: reenqueueFromStatusX
+- [x] support API: rename reprocess to reenqueue

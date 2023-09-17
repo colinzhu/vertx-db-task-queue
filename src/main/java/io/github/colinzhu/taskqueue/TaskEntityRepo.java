@@ -80,7 +80,6 @@ class TaskEntityRepo {
                     }
                 })
                 .onSuccess(sqlResult -> log.info("task deleted: taskId={}, time={}ms", taskId, System.currentTimeMillis() - start));
-                //.onFailure(err -> log.error("[taskId:{}] fail to delete task. Time:{}ms", taskId, System.currentTimeMillis() - start, err));
     }
 
     Future<Integer> updateStatusToError(SqlConnection sqlConnection, long taskId) {
@@ -100,7 +99,6 @@ class TaskEntityRepo {
                     }
                 })
                 .onSuccess(sqlResult -> log.info("task updated: taskId={}, newStatus={}, time={}ms", taskId, status, System.currentTimeMillis() - start));
-                //.onFailure(err -> log.error("[taskId:{}] fail to update status to [{}]. Time:{}ms", taskId, status, System.currentTimeMillis() - start, err));
     }
 
     Future<List<TaskEntity>> checkout(SqlConnection sqlConnection, String queueName, int batchSize, Duration nextProcessDelay) {
@@ -152,7 +150,6 @@ class TaskEntityRepo {
                         log.debug("task checkoutUpdate updated: count={}, taskIdList={}, time={}ms", updateCount, taskIdList, System.currentTimeMillis() - start);
                     }
                 });
-                //.onFailure(err -> log.error("taskIdList:{} checkout - failed, time:{}ms", taskIdList, System.currentTimeMillis() - start, err));
     }
 
 
@@ -170,7 +167,6 @@ class TaskEntityRepo {
                     }
                 })
                 .onSuccess(sqlResult -> log.info("task reenqueued: taskId={}, nextProcessTime={}, time={}ms", taskId, newNextProcessTime, System.currentTimeMillis() - start));
-                //.onFailure(err -> log.error("[taskId:{}] fail to reenqueue to nextProcessTime:[{}]. Time:{}ms", taskId, newNextProcessTime, System.currentTimeMillis() - start, err));
     }
 
     // for support only

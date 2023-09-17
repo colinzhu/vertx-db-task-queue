@@ -11,7 +11,7 @@ public interface TaskQueueSupportService {
         return TaskQueueSupportServiceImpl.getInstance();
     }
 
-    Future<Integer> reprocessErrorTasks(SqlConnection sqlConnection, Set<Long> taskIds);
+    Future<Integer> reenqueueErrorTasks(SqlConnection sqlConnection, Set<Long> taskIds);
 
     Future<List<?>> searchByQueueNameAndStatus(SqlConnection sqlConnection, String queueName, String status, int batchSize);
 
