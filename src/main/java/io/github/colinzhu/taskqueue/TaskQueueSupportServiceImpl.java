@@ -12,8 +12,8 @@ import java.util.Set;
 @Slf4j
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class TaskQueueSupportServiceImpl implements TaskQueueSupportService {
-    private final TaskEntityRepo taskEntityRepo;
-    private static final TaskQueueSupportServiceImpl instance = new TaskQueueSupportServiceImpl(TaskEntityRepo.getInstance());
+    private final TaskQueueSupportRepo supportRepo;
+    private static final TaskQueueSupportServiceImpl instance = new TaskQueueSupportServiceImpl(TaskQueueSupportRepo.getInstance());
 
     static TaskQueueSupportServiceImpl getInstance() {
         return instance;
@@ -21,27 +21,27 @@ class TaskQueueSupportServiceImpl implements TaskQueueSupportService {
 
     @Override
     public Future<Integer> reenqueueErrorTasks(SqlConnection sqlConnection, Set<Long> taskIds) {
-        return taskEntityRepo.reenqueueErrorTasks(sqlConnection, taskIds);
+        return supportRepo.reenqueueErrorTasks(sqlConnection, taskIds);
     }
 
     @Override
     public Future<Integer> markPoison(SqlConnection sqlConnection, Set<Long> taskIds) {
-        return taskEntityRepo.updateStatusFromToBatch(sqlConnection, taskIds, "ERROR", "POISON");
+        return supportRepo.updateStatusFromToBatch(sqlConnection, taskIds, "ERROR", "POISON");
     }
 
     @Override
     public Future<Integer> poisonToError(SqlConnection sqlConnection, Set<Long> taskIds) {
-        return taskEntityRepo.updateStatusFromToBatch(sqlConnection, taskIds, "POISON", "ERROR");
+        return supportRepo.updateStatusFromToBatch(sqlConnection, taskIds, "POISON", "ERROR");
     }
 
     @Override
     public Future<List<?>> searchByQueueNameAndStatus(SqlConnection sqlConnection, String queueName, String status, int batchSize) {
-        return taskEntityRepo.searchByQueueNameAndStatus(sqlConnection, queueName, status, batchSize).compose(Future::succeededFuture);
+        return supportRepo.searchByQueueNameAndStatus(sqlConnection, queueName, status, batchSize).compose(Future::succeededFuture);
     }
 
     @Override
     public Future<List<?>> countGroupByQueueNameAndStatus(SqlConnection sqlConnection) {
-        return taskEntityRepo.countGroupByQueueNameAndStatus(sqlConnection).compose(Future::succeededFuture);
+        return supportRepo.countGroupByQueueNameAndStatus(sqlConnection).compose(Future::succeededFuture);
     }
 
 }
