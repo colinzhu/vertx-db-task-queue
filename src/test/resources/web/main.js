@@ -40,6 +40,7 @@ async function showListTable() {
                 }, headerSort: false
             },
             { title: "id", field: "id", sorter: "number" },
+            { title: "queueName", field: "queueName" },
             { title: "referenceNumber", field: "referenceNumber" },
             { title: "status", field: "status" },
             { title: "attempt", field: "attempt", hozAlign: "right", sorter: "number" },
