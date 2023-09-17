@@ -90,11 +90,11 @@ class TaskQueueSupportRepo {
                     List<JsonObject> records = new ArrayList<>();
                     rows.forEach(row -> records.add(mapRowToCountRecord(row)));
                     if (rows.size() > 0) {
-                        log.info("task searchByQueueNameAndStatus completed: count={}, time={}ms", records.size(), System.currentTimeMillis() - start);
+                        log.info("task countGroupByQueueNameAndStatus completed: count={}, time={}ms", records.size(), System.currentTimeMillis() - start);
                     }
                     return records;
                 })
-                .onFailure(err -> log.error("task searchByQueueNameAndStatus failed: time={}ms", System.currentTimeMillis() - start, err));
+                .onFailure(err -> log.error("task countGroupByQueueNameAndStatus failed: time={}ms", System.currentTimeMillis() - start, err));
     }
 
     private static JsonObject mapRowToCountRecord(Row row) {
