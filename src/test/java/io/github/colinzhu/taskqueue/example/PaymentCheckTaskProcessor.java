@@ -38,7 +38,7 @@ public class PaymentCheckTaskProcessor implements Function<Task<Payment>, Future
                                 .compose(any -> taskQueueService.enqueue(txn,"payment.release", "REF_" + task.getPayload().getId(), task.getPayload()))
                                 .compose(any -> Future.succeededFuture());
                     } else {
-                        return taskQueueService.reenqueue(txn, task.getId(), Duration.ofSeconds(2 + task.getAttempt()));
+                        return taskQueueService.reenqueue(txn, task.getId(), Duration.ofSeconds(task.getAttempt()));
                     }
                 });
     }
