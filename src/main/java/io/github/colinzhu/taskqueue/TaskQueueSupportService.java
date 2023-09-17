@@ -13,6 +13,7 @@ public interface TaskQueueSupportService {
 
     Future<Integer> reenqueueErrorTasks(SqlConnection sqlConnection, Set<Long> taskIds);
     Future<Integer> markPoison(SqlConnection sqlConnection, Set<Long> taskIds);
+    Future<Integer> poisonToError(SqlConnection sqlConnection, Set<Long> taskIds);
     Future<List<?>> searchByQueueNameAndStatus(SqlConnection sqlConnection, String queueName, String status, int batchSize);
 
     Future<List<?>> countGroupByQueueNameAndStatus(SqlConnection sqlConnection);

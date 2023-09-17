@@ -41,14 +41,16 @@ public class TaskSupportVerticle extends AbstractVerticle {
         router.route("/support/taskqueue/web/*").handler(StaticHandler.create(FileSystemAccess.ROOT, "/home/colin/dev/git/vertx-db-task-queue/src/test/resources/web").setCachingEnabled(false));
         router.route().handler(BodyHandler.create());
         router.route("/support/taskqueue/api/reenqueue").handler(this::reenqueue);
-        router.route("/support/taskqueue/api/markpoison").handler(this::markPoison);
+        router.route("/support/taskqueue/api/mark-poison").handler(this::markPoison);
+        router.route("/support/taskqueue/api/poison-to-error").handler(this::poisonToError);
         router.route("/support/taskqueue/api/search/:queueName/:status").handler(this::search);
         router.route("/support/taskqueue/api/count").handler(this::count);
 
         String logMsg = """
                 task queue support server started.
                 http://localhost:#{port}/support/taskqueue/api/reenqueue
-                http://localhost:#{port}/support/taskqueue/api/markpoison
+                http://localhost:#{port}/support/taskqueue/api/mark-poison
+                http://localhost:#{port}/support/taskqueue/api/poison-to-error
                 http://localhost:#{port}/support/taskqueue/api/search/payment.check/CREATED?size=5
                 http://localhost:#{port}/support/taskqueue/api/count
                 http://localhost:#{port}/support/taskqueue/web/
@@ -73,6 +75,15 @@ public class TaskSupportVerticle extends AbstractVerticle {
         Future.succeededFuture()
                 .map(any -> routingContext.body().asJsonArray().stream().map(Object::toString).map(Long::valueOf).collect(Collectors.toSet()))
                 .compose(idList -> pool.withConnection(conn -> taskQueueSupportService.markPoison(conn, idList)))
+                .onSuccess(res -> routingContext.response().end(Json.encode(Map.of("count", res))))
+                .onFailure(err -> routingContext.response().setStatusCode(500).end(Json.encode(Map.of("reason", "error"))));
+    }
+
+    private void poisonToError(RoutingContext routingContext) {
+        log.info("poisonToError request body:{}", routingContext.body().asString());
+        Future.succeededFuture()
+                .map(any -> routingContext.body().asJsonArray().stream().map(Object::toString).map(Long::valueOf).collect(Collectors.toSet()))
+                .compose(idList -> pool.withConnection(conn -> taskQueueSupportService.poisonToError(conn, idList)))
                 .onSuccess(res -> routingContext.response().end(Json.encode(Map.of("count", res))))
                 .onFailure(err -> routingContext.response().setStatusCode(500).end(Json.encode(Map.of("reason", "error"))));
     }
