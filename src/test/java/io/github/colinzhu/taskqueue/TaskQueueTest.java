@@ -129,13 +129,12 @@ class TaskQueueTest {
 
         Function<Task<Payment>, Future<?>> taskProcessor = task -> {
             // simulate task already finished by another poller (payment status updated to "ABC", task deleted
-            pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskQueueService.finish(conn, task.getId())));
+            var futureOfAnother = pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskQueueService.finish(conn, task.getId())));
 
-            log.info("Processing {}", task.getPayload());
             Function<SqlConnection, Future<Integer>> function = conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_CURRENT_POLLER")
                         .compose(p -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5)));
 
-            return pool.withTransaction(function);
+            return futureOfAnother.compose(any -> pool.withTransaction(function));
         };
 
         PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
