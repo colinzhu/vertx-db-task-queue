@@ -12,6 +12,10 @@ import org.h2.tools.Server;
 @Slf4j
 public class H2Database {
     public static void main(String... args) {
+        createH2Server();
+    }
+
+    public static void createH2Server() {
         try {
             Server.createTcpServer("-tcpPort", "9092", "-tcpAllowOthers", "-ifNotExists", "-baseDir", "./").start();
             log.info("H2 database TCP server created at default port (9092). jdbc:h2:tcp://localhost/example-db");
@@ -29,8 +33,12 @@ public class H2Database {
     }
 
     public static JDBCPool getJdbcPool(Vertx vertx, boolean isMemoryDb) {
-        String url = isMemoryDb ? "jdbc:h2:mem:taskqueuetest;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH"
-                : "jdbc:h2:tcp://localhost/example-db;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH";
+        String url;
+        if (!isMemoryDb) {
+            url = "jdbc:h2:tcp://localhost/example-db;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH";
+        } else {
+            url = "jdbc:h2:mem:taskqueuetest;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH";
+        }
         final JsonObject config = new JsonObject()
                 .put("url", url)
                 .put("driver_class", "org.h2.Driver")

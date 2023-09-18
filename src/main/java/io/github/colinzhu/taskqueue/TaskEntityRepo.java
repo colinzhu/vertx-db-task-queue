@@ -26,10 +26,10 @@ class TaskEntityRepo {
         return instance;
     }
 
-    private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, PAYLOAD, REFERENCE_NUMBER, NEXT_PROCESS_TIME) VALUES (#{queueName}, 'CREATED', #{payload}, #{refNumber}, #{nextProcessTime})";
+    private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, PAYLOAD, REFERENCE_NUMBER, CREATE_TIME, NEXT_PROCESS_TIME, LAST_UPDATE_TIME) VALUES (#{queueName}, 'CREATED', #{payload}, #{refNumber}, #{createTime}, #{nextProcessTime}, #{lastUpdateTime})";
     private static final String SQL_FINISH = "DELETE TASKS WHERE ID = #{id} AND STATUS = 'PROCESSING'"; // only delete status in PROCESSING, in case updated by other already
-    private static final String SQL_UPDATE_STATUS = "UPDATE TASKS SET STATUS = #{status} WHERE ID = #{id}";
-    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE ID IN (SELECT ID FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY) FOR UPDATE SKIP LOCKED";
+    private static final String SQL_UPDATE_STATUS = "UPDATE TASKS SET STATUS = #{newStatus} WHERE ID = #{id}";
+    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE ID IN (SELECT ID FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY) AND STATUS IN ('CREATED','PROCESSING') AND NEXT_PROCESS_TIME <= #{now} FOR UPDATE SKIP LOCKED";
 //    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} AND ROWNUM <= #{batchSize} FOR UPDATE SKIP LOCKED";
 //    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME, ID FETCH FIRST #{batchSize} ROWS ONLY FOR UPDATE SKIP LOCKED";
     private static final String SQL_CHECK_OUT = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE ID IN ({idList})";
@@ -44,7 +44,9 @@ class TaskEntityRepo {
                         "queueName", queueName,
                         "payload", payload,
                         "refNumber", refNumber,
-                        "nextProcessTime", nextProcessTime))
+                        "createTime", now,
+                        "nextProcessTime", nextProcessTime,
+                        "lastUpdateTime", now))
                 .map(sqlResult -> new TaskEntity(
                         sqlResult.property(JDBCPool.GENERATED_KEYS).getLong(0),
                         refNumber,
@@ -79,19 +81,19 @@ class TaskEntityRepo {
         return updateStatus(sqlConnection, taskId, "ERROR");
     }
 
-    Future<Integer> updateStatus(SqlConnection sqlConnection, long taskId, String status) {
+    Future<Integer> updateStatus(SqlConnection sqlConnection, long taskId, String newStatus) {
         long start = System.currentTimeMillis();
         return SqlTemplate.forUpdate(sqlConnection, SQL_UPDATE_STATUS)
-                .execute(Map.of("id", taskId, "status", status))
+                .execute(Map.of("id", taskId, "newStatus", newStatus))
                 .map(SqlResult::rowCount)
                 .map(updateCount -> {
                     if (0 == updateCount) {
-                        throw new IllegalStateException(String.format("task update failed: taskId=%s, toStatus=%s, updateCount=0, expected=1, maybe already updated/deleted by another poller.", taskId, status));
+                        throw new IllegalStateException(String.format("task update status to '%s' failed: taskId=%s, toStatus=%s, updateCount=0, expected=1, maybe already deleted by another poller.", newStatus, taskId, newStatus));
                     } else {
                         return updateCount;
                     }
                 })
-                .onSuccess(sqlResult -> log.info("task updated: taskId={}, newStatus={}, time={}ms", taskId, status, System.currentTimeMillis() - start));
+                .onSuccess(sqlResult -> log.info("task status updated to '{}': taskId={}, time={}ms", newStatus, taskId, System.currentTimeMillis() - start));
     }
 
     Future<List<TaskEntity>> checkout(SqlConnection sqlConnection, String queueName, int batchSize, Duration nextProcessDelay) {
@@ -111,7 +113,7 @@ class TaskEntityRepo {
                     List<TaskEntity> records = new ArrayList<>();
                     rows.forEach(row -> records.add(mapRowToTaskEntity(row)));
                     if (rows.size() > 0) {
-                        log.debug("task checkoutSelect: queue={}, count={}, taskIdAndLastUpdateTimeList={}, time={}ms", queueName, records.size(), records.stream().map(entity -> entity.getId() + "_" + entity.getLastUpdateTime()).collect(Collectors.toList()), System.currentTimeMillis() - start);
+                        log.debug("task checkoutSelect: queue={}, count={}, taskList={}, time={}ms", queueName, records.size(), records, System.currentTimeMillis() - start);
                     }
                     return records;
                 });

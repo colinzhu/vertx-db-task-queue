@@ -16,5 +16,6 @@ class TaskEntity implements Serializable {
     OffsetDateTime createTime;
     OffsetDateTime nextProcessTime;
     OffsetDateTime lastUpdateTime;
+    @ToString. Exclude
     String payload;
 }
