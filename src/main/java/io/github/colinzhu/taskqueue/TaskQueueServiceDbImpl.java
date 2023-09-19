@@ -30,11 +30,11 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
     }
 
     @Override
-    public <T> Future<Task<T>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload) {
+    public <T> Future<Long> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload) {
         return enqueue(sqlConnection, queueName, refNumber, payload, Duration.ZERO);
     }
     @Override
-    public <T> Future<Task<T>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
+    public <T> Future<Long> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
         String payloadStr;
         try {
             payloadStr = objectMapper.writeValueAsString(payload);
@@ -42,7 +42,7 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
             return Future.failedFuture(e);
         }
         return taskEntityRepo.insert(sqlConnection, queueName, refNumber, payloadStr, processDelay)
-                .map(taskEntity -> new Task<>(taskEntity.getId(), taskEntity.getAttempt() + 1, payload));
+                .map(TaskEntity::getId);
     }
 
     @Override

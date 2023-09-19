@@ -59,7 +59,7 @@ class TaskQueueTest {
         Payment payment = new Payment("CREATED", OffsetDateTime.now());
         String queueName = "REENQUEUE".equals(afterProcessAction) ? "Q2-need-reenquueue" : "Q1-need-finish";
         pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p)))
-                .onComplete(testContext.succeeding(task -> {
+                .onComplete(testContext.succeeding(taskId -> {
                     vertx.setTimer(2000, id -> {
                         // verify payment status
                         retrievePayment(payment.getId()).onComplete(testContext.succeeding(res -> {
@@ -68,7 +68,7 @@ class TaskQueueTest {
                         }));
 
                         // verify task
-                        retrieveTask(task.getId()).onComplete(testContext.succeeding(res -> {
+                        retrieveTask(taskId).onComplete(testContext.succeeding(res -> {
                             if ("REENQUEUE".equals(afterProcessAction)) {
                                 Assertions.assertTrue(List.of("CREATED","PROCESSING").contains(res.getString("STATUS")), "task should still ba available for next processing");
                             } else {
@@ -111,7 +111,7 @@ class TaskQueueTest {
         Payment payment = new Payment("CREATED", OffsetDateTime.now());
         String queueName = "Q-already-finished-by-another-poller";
         pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p)))
-                .onComplete(testContext.succeeding(task -> {
+                .onComplete(testContext.succeeding(taskId -> {
                     vertx.setTimer(2000, id -> {
                         // verify payment status
                         retrievePayment(payment.getId()).onComplete(testContext.succeeding(res -> {
@@ -120,7 +120,7 @@ class TaskQueueTest {
                         }));
 
                         // verify task
-                        retrieveTask(task.getId()).onComplete(testContext.succeeding(res -> {
+                        retrieveTask(taskId).onComplete(testContext.succeeding(res -> {
                             Assertions.assertNull(res, "task should not be available, already deleted by another poller");
                             checkpoint.flag();
                         }));
@@ -174,7 +174,7 @@ class TaskQueueTest {
 
         Payment payment = new Payment("CREATED", OffsetDateTime.now());
         pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, "Q3-poller-stopped", "ref1", p)))
-                .onComplete(testContext.succeeding(task -> {
+                .onComplete(testContext.succeeding(taskId -> {
                     vertx.setTimer(2000, id -> {
                         // verify payment status
                         retrievePayment(payment.getId()).onComplete(testContext.succeeding(res -> {
@@ -183,7 +183,7 @@ class TaskQueueTest {
                         }));
 
                         // verify task
-                        retrieveTask(task.getId()).onComplete(testContext.succeeding(res -> {
+                        retrieveTask(taskId).onComplete(testContext.succeeding(res -> {
                             //Assertions.assertEquals("CREATED", res.getString("STATUS"), "task should not be checked-out");
                             checkpoint.flag();
                         }));
@@ -198,7 +198,7 @@ class TaskQueueTest {
         Checkpoint checkpoint = testContext.checkpoint(2);
         Payment payment = new Payment("CREATED", OffsetDateTime.now());
         pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, "Q1", "ref1", p)))
-                .onComplete(testContext.succeeding(task -> {
+                .onComplete(testContext.succeeding(taskId -> {
                     // after 6 seconds
                     vertx.setTimer(2000, id -> {
                         // verify payment status
@@ -208,7 +208,7 @@ class TaskQueueTest {
                         }));
 
                         // verify task
-                        retrieveTask(task.getId()).onComplete(testContext.succeeding(row -> {
+                        retrieveTask(taskId).onComplete(testContext.succeeding(row -> {
                             Assertions.assertEquals("ERROR", row.getString("STATUS"), "task should be updated to ERROR");
                             checkpoint.flag();
                         }));

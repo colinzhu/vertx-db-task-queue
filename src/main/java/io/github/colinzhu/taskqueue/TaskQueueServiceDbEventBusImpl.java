@@ -33,20 +33,20 @@ class TaskQueueServiceDbEventBusImpl extends TaskQueueServiceDbImpl {
     }
 
     @Override
-    public <T> Future<Task<T>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload) {
+    public <T> Future<Long> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload) {
         throw new UnsupportedOperationException("For using event bus, please use method with `processDelay` parameter.");
     }
 
-    public <T> Future<Task<T>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
+    public <T> Future<Long> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
         if (processDelay.isZero()) {
             throw new IllegalArgumentException("For using event bus, processDelay cannot be zero");
         }
         return super.enqueue(sqlConnection, queueName, refNumber, payload, processDelay)
-                .map(task -> {
-                    vertx.eventBus().send(queueName, task);
+                .map(taskId -> {
+                    vertx.eventBus().send(queueName, new Task<>(taskId, 0, payload));
                     log.info("[{}]Task sent to event bus, refNumber:{}, taskId:{}, nextProcessDelay:{}",
-                            queueName, refNumber, task.getId(), processDelay);
-                    return task;
+                            queueName, refNumber, taskId, processDelay);
+                    return taskId;
                 });
     }
 }

@@ -24,26 +24,28 @@ public interface TaskQueueService {
 
     /**
      * To create a task into task queue
+     *
      * @param sqlConnection DB transaction
-     * @param queueName queue name
-     * @param refNumber reference number of payload
-     * @param payload payload object which will be marshalled to json string
-     * @return future of a task which has been stored into task queue
-     * @param <T> task payload type
+     * @param queueName     queue name
+     * @param refNumber     reference number of payload
+     * @param payload       payload object which will be marshalled to json string
+     * @param <T>           task payload type
+     * @return future of a task id
      */
-    <T> Future<Task<T>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload);
+    <T> Future<Long> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload);
 
     /**
      * To create a task into task queue
+     *
      * @param sqlConnection DB transaction
-     * @param queueName queue name
-     * @param refNumber reference number of payload
-     * @param payload payload object which will be marshalled to json string
-     * @param delay process delay time after putting into the queue
+     * @param queueName     queue name
+     * @param refNumber     reference number of payload
+     * @param payload       payload object which will be marshalled to json string
+     * @param delay         process delay time after putting into the queue
+     * @param <T>           task payload type
      * @return future of a task which has been stored into task queue
-     * @param <T> task payload type
      */
-    <T> Future<Task<T>> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration delay);
+    <T> Future<Long> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration delay);
 
     /**
      * To finish the task (remove from task queue)
