@@ -15,14 +15,14 @@ import java.time.Duration;
 @Slf4j
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class TaskQueueServiceDbImpl implements TaskQueueService {
-    private final TaskEntityRepo taskEntityRepo;
+    protected final TaskEntityRepo taskEntityRepo;
 
     /**
      * disable SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, so the date time format will be:
      * OffsetDateTime: "2023-09-15T20:09:06.972733991+08:00", instead: 1694779746.972733991
      * LocalDateTime: "2023-09-15T20:09:06.9727829", instead: [2023,9,15,20,9,6,972782900]
      */
-    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule()).disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    protected final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule()).disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     private static final TaskQueueServiceDbImpl instance = new TaskQueueServiceDbImpl(TaskEntityRepo.getInstance());
 
     static TaskQueueServiceDbImpl getInstance() {
@@ -56,7 +56,7 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
         return taskEntityRepo.reenqueue(sqlConnection, taskId, delay);
     }
 
-    Future<Integer> fail(SqlConnection sqlConnection, long taskId) {
+    public Future<Integer> fail(SqlConnection sqlConnection, long taskId) {
         return taskEntityRepo.updateStatusToError(sqlConnection, taskId);
     }
 }

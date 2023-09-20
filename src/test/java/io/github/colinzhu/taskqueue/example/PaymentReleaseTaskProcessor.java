@@ -33,7 +33,7 @@ public class PaymentReleaseTaskProcessor implements Function<Task<Payment>, Futu
         return txn.query("UPDATE PAYMENT SET STATUS = 'RELEASED' WHERE ID = " + payment.getId())
                 .execute()
                 .compose(res -> {
-                    if (task.getAttempt() >= 2) {
+                    if (task.getAttempt() >= 1) {
                         return taskQueueService.finish(txn, task.getId());
                     } else {
                         return taskQueueService.reenqueue(txn, task.getId(), Duration.ofSeconds(task.getAttempt()));
@@ -44,7 +44,7 @@ public class PaymentReleaseTaskProcessor implements Function<Task<Payment>, Futu
     // do some blocking task OUTSIDE the DB transaction, e.g. call HTTP API
     private Future<Payment> doSomething(Task<Payment> task) {
         Promise<Payment> promise = Promise.promise();
-        vertx.setTimer(RandomGenerator.getDefault().nextInt(1, 100), id -> {
+        vertx.setTimer(RandomGenerator.getDefault().nextInt(100, 500), id -> {
             log.info("[taskId:{}] doSomething release completed. Attempt={}. Payload:{}", task.getId(), task.getAttempt(), task.getPayload());
             promise.complete(task.getPayload());
         });
@@ -54,6 +54,10 @@ public class PaymentReleaseTaskProcessor implements Function<Task<Payment>, Futu
 
     @Override
     public void handle(Message<Task<Payment>> message) {
-        apply(message.body());
+        log.info("Task received from event bus, queueName={}, taskId={}, referenceNumber={}", "payment.check", message.body().getId(), message.body().getPayload().getId());
+        apply(message.body()).recover(err -> {
+            log.error("Task from event bus handle failed, queueName={}, taskId={}, referenceNumber={}", "payment.check", message.body().getId(), message.body().getPayload().getId(), err);
+            return pool.withConnection(conn -> taskQueueService.fail(conn, message.body().getId()).compose(count -> Future.succeededFuture())); // for recover to mark the task as ERROR, it needs to be in a separate connection
+        });
     }
 }

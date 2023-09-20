@@ -26,7 +26,7 @@ class TaskEntityRepo {
         return instance;
     }
 
-    private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, PAYLOAD, REFERENCE_NUMBER, CREATE_TIME, NEXT_PROCESS_TIME, LAST_UPDATE_TIME) VALUES (#{queueName}, 'CREATED', #{payload}, #{refNumber}, #{createTime}, #{nextProcessTime}, #{lastUpdateTime})";
+    private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, ATTEMPT, PAYLOAD, REFERENCE_NUMBER, CREATE_TIME, NEXT_PROCESS_TIME, LAST_UPDATE_TIME) VALUES (#{queueName}, #{status}, #{attempt}, #{payload}, #{refNumber}, #{createTime}, #{nextProcessTime}, #{lastUpdateTime})";
     private static final String SQL_FINISH = "DELETE TASKS WHERE ID = #{id} AND STATUS = 'PROCESSING'"; // only delete status in PROCESSING, in case updated by other already
     private static final String SQL_UPDATE_STATUS = "UPDATE TASKS SET STATUS = #{newStatus} WHERE ID = #{id}";
     private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE ID IN (SELECT ID FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY) AND STATUS IN ('CREATED','PROCESSING') AND NEXT_PROCESS_TIME <= #{now} FOR UPDATE SKIP LOCKED";
@@ -36,12 +36,18 @@ class TaskEntityRepo {
     private static final String SQL_RE_ENQUEUE = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE ID = #{id} AND STATUS = 'PROCESSING'";
 
     Future<TaskEntity> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
+        return insert(sqlConnection, queueName, refNumber, payload, processDelay, "CREATED", 0L);
+    }
+
+    Future<TaskEntity> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay, String status, long attempt) {
         long start = System.currentTimeMillis();
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime nextProcessTime = now.plus(processDelay);
         return SqlTemplate.forUpdate(sqlConnection, SQL_INSERT)
                 .execute(Map.of(
                         "queueName", queueName,
+                        "status", status,
+                        "attempt", attempt,
                         "payload", payload,
                         "refNumber", refNumber,
                         "createTime", now,
@@ -51,8 +57,8 @@ class TaskEntityRepo {
                         sqlResult.property(JDBCPool.GENERATED_KEYS).getLong(0),
                         refNumber,
                         queueName,
-                        "CREATED",
-                        0L,
+                        status,
+                        attempt,
                         now,
                         nextProcessTime,
                         now,

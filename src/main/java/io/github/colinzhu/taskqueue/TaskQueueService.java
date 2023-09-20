@@ -63,4 +63,5 @@ public interface TaskQueueService {
      * @return future of number of task updated
      */
     Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay);
+    Future<Integer> fail(SqlConnection sqlConnection, long taskId);
 }
