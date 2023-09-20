@@ -21,7 +21,7 @@ import java.util.random.RandomGenerator;
 public class PaymentReleaseTaskProcessor implements Function<Task<Payment>, Future<?>>, Handler<Message<Task<Payment>>> {
     private final Vertx vertx;
     private final JDBCPool pool;
-    private final TaskQueueService taskQueueService = TaskQueueService.taskQueue();
+    private final TaskQueueService taskQueueService;
 
     @Override
     public Future<Integer> apply(Task<Payment> task) {

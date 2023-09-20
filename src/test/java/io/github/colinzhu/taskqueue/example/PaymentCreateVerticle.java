@@ -39,6 +39,7 @@ public class PaymentCreateVerticle extends AbstractVerticle {
     }
 
     private void handleRouting(RoutingContext routingContext) {
+        TaskQueueService taskQueueService = TaskQueueService.taskQueue();
         long start = System.currentTimeMillis();
         int count;
         try {
@@ -53,7 +54,7 @@ public class PaymentCreateVerticle extends AbstractVerticle {
             final int i2 = i;
             futures.add(
                     pool.withTransaction(conn -> insertPayment(conn, p)
-                                    .compose(payment -> TaskQueueService.taskQueue(vertx).enqueue(conn, "payment.check", "REF_" + payment.getId(), payment, Duration.ofMinutes(10))))
+                                    .compose(payment -> taskQueueService.enqueue(conn, "payment.check", "REF_" + payment.getId(), payment)))
                             .onSuccess(event -> log.debug("#{} payment and task created, time: {}ms", i2, System.currentTimeMillis() - start))
                             .onFailure(e -> log.error("error creating payment / task", e))
             );
