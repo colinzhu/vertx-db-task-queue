@@ -63,7 +63,7 @@ public class PaymentCheckTaskProcessor implements Function<Task<Payment>, Future
 
     @Override
     public void handle(Message<Task<Payment>> message) {
-        log.info("Task received from event bus, queueName={}, taskId={}, referenceNumber={}", "payment.check", message.body().getId(), message.body().getPayload().getId());
+        log.info("Task received from event bus, queueName={}, taskId={}, referenceNumber={}", message.address(), message.body().getId(), message.body().getPayload().getId());
         apply(message.body()).recover(err -> {
             log.error("Task from event bus handle failed, queueName={}, taskId={}, referenceNumber={}", "payment.check", message.body().getId(), message.body().getPayload().getId(), err);
             return pool.withConnection(conn -> taskQueueService.fail(conn, message.body().getId()).compose(count -> Future.succeededFuture())); // for recover to mark the task as ERROR, it needs to be in a separate connection
