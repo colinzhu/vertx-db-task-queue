@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.vertx.core.Future;
+import io.vertx.core.Vertx;
 import io.vertx.sqlclient.SqlConnection;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
     private static final String ENV_VAR_IS_DELETE_WHEN_FINISH = "TaskQueueService.isDeleteWhenFinish";
     private final boolean isDeleteWhenFinish = Boolean.parseBoolean(System.getProperty(ENV_VAR_IS_DELETE_WHEN_FINISH, Boolean.TRUE.toString()));
     private final TaskEntityRepo taskEntityRepo;
+    private final Vertx vertx;
 
     /**
      * disable SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, so the date time format will be:
@@ -25,9 +27,12 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
      * LocalDateTime: "2023-09-15T20:09:06.9727829", instead: [2023,9,15,20,9,6,972782900]
      */
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule()).disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-    private static final TaskQueueServiceDbImpl instance = new TaskQueueServiceDbImpl(TaskEntityRepo.getInstance());
+    private static TaskQueueServiceDbImpl instance;
 
-    static TaskQueueServiceDbImpl getInstance() {
+    static TaskQueueServiceDbImpl getInstance(Vertx vertx) {
+        if (null == instance) {
+            instance = new TaskQueueServiceDbImpl(TaskEntityRepo.getInstance(), vertx);
+        }
         return instance;
     }
 
@@ -44,7 +49,11 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
             return Future.failedFuture(e);
         }
         return taskEntityRepo.insert(sqlConnection, queueName, refNumber, payloadStr, processDelay)
-                .map(TaskEntity::getId);
+                .map(task -> {
+                    vertx.eventBus().send("poller." + queueName, task.getId());
+                    log.debug("New task notification sent to event bus, address={}, taskId={}", "poller." + queueName, task.getId());
+                    return task.getId();
+                });
     }
 
     @Override

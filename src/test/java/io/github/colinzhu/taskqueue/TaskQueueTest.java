@@ -38,7 +38,7 @@ class TaskQueueTest {
         setLogLevel("io.github.colinzhu.taskqueue.TaskEntityRepo", Level.DEBUG);
 
         pool = H2Database.getJdbcPool(vertx, true);
-        taskQueueService = TaskQueueService.taskQueue();
+        taskQueueService = TaskQueueService.taskQueue(vertx);
         H2Database.createTables(pool).onComplete(ar -> testContext.completeNow());
     }
 

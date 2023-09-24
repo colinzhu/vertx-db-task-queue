@@ -39,7 +39,7 @@ public class PaymentCreateVerticle extends AbstractVerticle {
     }
 
     private void handleRouting(RoutingContext routingContext) {
-        TaskQueueService taskQueueService = TaskQueueService.taskQueue();
+        TaskQueueService taskQueueService = TaskQueueService.taskQueue(vertx);
         long start = System.currentTimeMillis();
         int count;
         try {

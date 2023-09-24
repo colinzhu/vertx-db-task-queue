@@ -27,6 +27,7 @@ public class ExampleApp {
         setLogLevel(ROOT_LOGGER_NAME, Level.INFO);
         setLogLevel("com.mchange.v2.resourcepool.BasicResourcePool", Level.DEBUG);
         setLogLevel("io.github.colinzhu.taskqueue", Level.INFO);
+        setLogLevel("io.github.colinzhu.taskqueue.TaskPoller", Level.DEBUG);
         setLogLevel("io.github.colinzhu.taskqueue.TaskEntityRepo", Level.DEBUG);
         setLogLevel(PaymentCheckTaskProcessor.class.getName(), Level.INFO);
 
