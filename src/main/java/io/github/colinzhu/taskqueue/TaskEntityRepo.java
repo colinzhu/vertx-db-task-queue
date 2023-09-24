@@ -28,7 +28,7 @@ class TaskEntityRepo {
 
     private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, ATTEMPT, PAYLOAD, REFERENCE_NUMBER, CREATE_TIME, NEXT_PROCESS_TIME, LAST_UPDATE_TIME) VALUES (#{queueName}, #{status}, #{attempt}, #{payload}, #{refNumber}, #{createTime}, #{nextProcessTime}, #{lastUpdateTime})";
     private static final String SQL_FINISH = "DELETE TASKS WHERE ID = #{id} AND STATUS = 'PROCESSING'"; // only delete status in PROCESSING, in case updated by other already
-    private static final String SQL_UPDATE_STATUS = "UPDATE TASKS SET STATUS = #{newStatus} WHERE ID = #{id}";
+    private static final String SQL_UPDATE_STATUS = "UPDATE TASKS SET STATUS = #{newStatus}, LAST_UPDATE_TIME = #{now} WHERE ID = #{id}";
     private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE ID IN (SELECT ID FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY) AND STATUS IN ('CREATED','PROCESSING') AND NEXT_PROCESS_TIME <= #{now} FOR UPDATE SKIP LOCKED";
 //    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} AND ROWNUM <= #{batchSize} FOR UPDATE SKIP LOCKED";
 //    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME, ID FETCH FIRST #{batchSize} ROWS ONLY FOR UPDATE SKIP LOCKED";
@@ -90,7 +90,7 @@ class TaskEntityRepo {
     Future<Integer> updateStatus(SqlConnection sqlConnection, long taskId, String newStatus) {
         long start = System.currentTimeMillis();
         return SqlTemplate.forUpdate(sqlConnection, SQL_UPDATE_STATUS)
-                .execute(Map.of("id", taskId, "newStatus", newStatus))
+                .execute(Map.of("id", taskId, "newStatus", newStatus, "now", OffsetDateTime.now()))
                 .map(SqlResult::rowCount)
                 .map(updateCount -> {
                     if (0 == updateCount) {
