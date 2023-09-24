@@ -117,7 +117,11 @@ public class TaskPoller<T> {
             return;
         }
         if (config.isPollNextBatch()) {
-            vertx.setTimer(delay.toMillis(), id -> fetchBatchAndProcess());
+            if (Duration.ZERO.equals(delay)) {
+                fetchBatchAndProcess();
+            } else {
+                vertx.setTimer(delay.toMillis(), id -> fetchBatchAndProcess());
+            }
         } else {
             log.info("{} isPollNextBatch=false, no more polling", pollerId);
             isStopped = true;

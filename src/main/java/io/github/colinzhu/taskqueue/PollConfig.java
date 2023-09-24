@@ -16,7 +16,7 @@ public class PollConfig<T> {
     Class<T> payloadClass;
 
     @Builder.Default Duration noTaskPollInterval = Duration.ofSeconds(5);
-    @Builder.Default Duration hasTaskPollInterval = Duration.ofMillis(1);
+    @Builder.Default Duration hasTaskPollInterval = Duration.ZERO;
     @Builder.Default Duration errorProcessTasksInterval = Duration.ofSeconds(5);
     @Builder.Default Duration errorCheckOutInterval = Duration.ofSeconds(60);
     @Builder.Default boolean pollNextBatch = true;
