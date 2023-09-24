@@ -15,14 +15,16 @@ import java.time.Duration;
 @Slf4j
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class TaskQueueServiceDbImpl implements TaskQueueService {
-    protected final TaskEntityRepo taskEntityRepo;
+    private static final String ENV_VAR_IS_DELETE_WHEN_FINISH = "TaskQueueService.isDeleteWhenFinish";
+    private final boolean isDeleteWhenFinish = Boolean.parseBoolean(System.getProperty(ENV_VAR_IS_DELETE_WHEN_FINISH, Boolean.TRUE.toString()));
+    private final TaskEntityRepo taskEntityRepo;
 
     /**
      * disable SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, so the date time format will be:
      * OffsetDateTime: "2023-09-15T20:09:06.972733991+08:00", instead: 1694779746.972733991
      * LocalDateTime: "2023-09-15T20:09:06.9727829", instead: [2023,9,15,20,9,6,972782900]
      */
-    protected final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule()).disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule()).disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     private static final TaskQueueServiceDbImpl instance = new TaskQueueServiceDbImpl(TaskEntityRepo.getInstance());
 
     static TaskQueueServiceDbImpl getInstance() {
@@ -47,8 +49,11 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
 
     @Override
     public Future<Integer> finish(SqlConnection sqlConnection, long taskId) {
-        return taskEntityRepo.finish(sqlConnection, taskId);
-        //return taskEntityRepo.updateStatus(sqlConnection, taskId, "COMPLETED");
+        if (isDeleteWhenFinish) {
+            return taskEntityRepo.finish(sqlConnection, taskId);
+        } else {
+            return taskEntityRepo.updateStatus(sqlConnection, taskId, "COMPLETED");
+        }
     }
 
     @Override

@@ -32,7 +32,7 @@ public class TaskPoller<T> {
 
     public TaskPoller(Vertx vertx, JDBCPool pool, PollConfig<T> config) {
         this(vertx, pool, config, TaskEntityRepo.getInstance(), TaskQueueServiceDbImpl.getInstance());
-        pollerId = "poller-" + config.getQueueName() + "-" + this.hashCode();
+        pollerId = "poller-" + config.getQueueName() + "-" + Integer.toHexString(this.hashCode());
         log.info("{} created: {}", pollerId, config);
     }
 

@@ -8,13 +8,11 @@ import io.github.colinzhu.taskqueue.example.Payment;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.jdbcclient.JDBCPool;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 
 @Slf4j
-@RequiredArgsConstructor
 public class PaymentCheckVerticle extends AbstractVerticle {
     private TaskPoller<Payment> poller;
     @Override
@@ -25,11 +23,17 @@ public class PaymentCheckVerticle extends AbstractVerticle {
         PaymentCheckTaskProcessor taskProcessor = new PaymentCheckTaskProcessor(vertx, pool,  TaskQueueService.taskQueue());
 
         // register taskProcessor to poller
-        PollConfig<Payment> pollConfig = PollConfig.<Payment>builder().queueName("payment.check").batchSize(20).nextProcessDelay(Duration.ofMinutes(10)).taskProcessor(taskProcessor).payloadClass(Payment.class).noTaskPollInterval(Duration.ofSeconds(5)).build();
+        PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
+                .queueName("payment.check")
+                .batchSize(20)
+                .nextProcessDelay(Duration.ofMinutes(10))
+                .taskProcessor(taskProcessor)
+                .payloadClass(Payment.class)
+                .build();
         poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
 
-        log.info("{}[{}] instance started", PaymentCheckVerticle.class.getSimpleName(), this.hashCode());
+        log.info("{}[{}] instance started", PaymentCheckVerticle.class.getSimpleName(), Integer.toHexString(this.hashCode()));
     }
 
     @Override

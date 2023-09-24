@@ -50,3 +50,4 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] support API: housekeep POISON (only task older than x weeks)
 - [x] handle concurrent update task case
 - [x] remove event-bus impl, set a big batch size in poller can have similar performance
+- [x] add support of system property "TaskQueueService.isDeleteWhenFinish"
