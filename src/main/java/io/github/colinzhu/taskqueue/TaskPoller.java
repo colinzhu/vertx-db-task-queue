@@ -30,22 +30,22 @@ public class TaskPoller<T> {
     private boolean isToStop = false;
     private boolean isStopped = true; // default is stopped, until start() is invoked
     private long timerId = -1;
-    private boolean waitingForTimer = false;
+    private boolean isNoTaskWaitingForTimer = false;
     public TaskPoller(Vertx vertx, JDBCPool pool, PollConfig<T> config) {
-        this(vertx, pool, config, TaskEntityRepo.getInstance(), TaskQueueServiceDbImpl.getInstance(vertx));
+        this(vertx, pool, config, TaskEntityRepo.getInstance(), new TaskQueueServiceDbImpl(vertx, TaskEntityRepo.getInstance()));
         pollerId = "poller-" + config.getQueueName() + "-" + Integer.toHexString(this.hashCode());
         log.info("{} created: {}", pollerId, config);
 
         String eventBusAddress = "poller." + config.getQueueName();
         vertx.eventBus().consumer(eventBusAddress, message -> {
             // If waiting for a timer, cancel it and fetch tasks immediately
-            if (waitingForTimer) {
+            if (isNoTaskWaitingForTimer) {
                 vertx.cancelTimer(timerId);
                 //waitingForTimer = false;
                 log.debug("{} New task event received, timerId={} cancelled, start to process new tasks. taskId={}", pollerId, timerId, message.body());
                 fetchBatchAndProcess();
             } else {
-                log.debug("{} New task event received, ignored, because it's not waiting for the timer. taskId={}", pollerId, message.body());
+                log.debug("{} New task event received, ignored, because it's not no task and waiting for the timer. taskId={}", pollerId, message.body());
             }
         });
     }
@@ -80,7 +80,7 @@ public class TaskPoller<T> {
      * Frequently trigger the taskSelector to fetch tasks and then invoke the taskProcessor to process them
      */
     private void fetchBatchAndProcess() {
-        waitingForTimer = false;
+        isNoTaskWaitingForTimer = false;
         if (isToStop) {
             log.info("{} isToStop=true, stop polling", pollerId);
             isStopped = true;
@@ -138,9 +138,10 @@ public class TaskPoller<T> {
             if (Duration.ZERO.equals(delay)) {
                 fetchBatchAndProcess();
             } else {
+                log.debug("{} rerun delay={}", pollerId, delay);
                 timerId = vertx.setTimer(delay.toMillis(), id -> fetchBatchAndProcess());
                 if (isNoTask) { // only allow to cancel timer when it's normal and no task case
-                    waitingForTimer = true;
+                    isNoTaskWaitingForTimer = true;
                 }
             }
         } else {

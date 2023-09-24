@@ -16,7 +16,7 @@ import java.time.Duration;
  */
 public interface TaskQueueService {
     static TaskQueueService taskQueue(Vertx vertx) {
-        return TaskQueueServiceDbImpl.getInstance(vertx);
+        return new TaskQueueServiceDbImpl(vertx, TaskEntityRepo.getInstance());
     }
 
     /**

@@ -53,4 +53,4 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] add support of system property "TaskQueueService.isDeleteWhenFinish"
 - [x] update TaskPoller to rerun without delay when has tasks
 - [x] when enqueue a task, notify poller by sending an event to event bus, if it's waiting for timer, it can cancel the timer and process immediately
-- [ ] Update TaskQueueService to non-singleton, because vertx is now parameter to create TaskQueueService
+- [x] Update TaskQueueService to non-singleton, because vertx is now parameter to create TaskQueueService
