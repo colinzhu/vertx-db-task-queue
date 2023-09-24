@@ -24,7 +24,7 @@ public class PaymentReleaseVerticle extends AbstractVerticle {
         PaymentReleaseTaskProcessor taskProcessor = new PaymentReleaseTaskProcessor(vertx, pool, TaskQueueService.taskQueue());
 
         // register taskProcessor to poller
-        PollConfig<Payment> pollConfig = PollConfig.<Payment>builder().queueName("payment.release").batchSize(20).nextProcessDelay(Duration.ofMinutes(10)).taskProcessor(taskProcessor).payloadClass(Payment.class).noTaskPollInterval(Duration.ofSeconds(1)).build();
+        PollConfig<Payment> pollConfig = PollConfig.<Payment>builder().queueName("payment.release").batchSize(20).nextProcessDelay(Duration.ofMinutes(10)).taskProcessor(taskProcessor).payloadClass(Payment.class).noTaskPollInterval(Duration.ofSeconds(5)).build();
         poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
 
