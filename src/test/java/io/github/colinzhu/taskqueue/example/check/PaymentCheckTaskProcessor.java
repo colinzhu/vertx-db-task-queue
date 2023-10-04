@@ -40,7 +40,7 @@ public class PaymentCheckTaskProcessor implements Function<Task<Payment>, Future
                 .execute()
                 .compose(res -> {
                     if (task.getAttempt() >= 1) {
-                        return taskQueueService.finish(txn, task.getId())
+                        return taskQueueService.complete(txn, task.getId())
                                 .compose(any -> taskQueueService.enqueue(txn,"payment.release", "REF_" + task.getPayload().getId(), task.getPayload()))
                                 .compose(any -> Future.succeededFuture());
                     } else {

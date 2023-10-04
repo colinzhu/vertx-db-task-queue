@@ -33,7 +33,7 @@ public class PaymentReleaseTaskProcessor implements Function<Task<Payment>, Futu
                 .execute()
                 .compose(res -> {
                     if (task.getAttempt() >= 1) {
-                        return taskQueueService.finish(txn, task.getId());
+                        return taskQueueService.complete(txn, task.getId());
                     } else {
                         return taskQueueService.reenqueue(txn, task.getId(), Duration.ofSeconds(task.getAttempt()));
                     }

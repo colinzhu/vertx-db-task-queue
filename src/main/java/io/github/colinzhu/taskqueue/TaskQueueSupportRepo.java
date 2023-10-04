@@ -26,21 +26,21 @@ class TaskQueueSupportRepo {
     }
 
     // below for support only
-    private static final String SQL_RE_ENQUEUE_ERR_BATCH = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID IN ({idList}) AND STATUS = 'ERROR'";
+    private static final String SQL_RE_ENQUEUE_ERR_BATCH = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{now}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID IN ({idList}) AND STATUS = 'ERROR'";
     private static final String SQL_SEARCH_QNAME_STATUS = "SELECT * FROM TASKS WHERE QUEUE_NAME = #{queueName} AND STATUS = #{status} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY";
     private static final String SQL_COUNT_QNAME_STATUS = "SELECT QUEUE_NAME, STATUS, COUNT(ID) ROWCOUNT FROM TASKS GROUP BY QUEUE_NAME, STATUS ORDER BY QUEUE_NAME, STATUS";
     private static final String SQL_UPDATE_STATUS_BATCH = "UPDATE TASKS SET STATUS = #{toStatus} WHERE ID IN ({idList}) AND STATUS = #{fromStatus}";
     private static final String SQL_DELETE_POISON_BATCH = "DELETE TASKS WHERE ID IN ({idList}) AND CREATE_TIME <= #{createTimeBefore} AND STATUS = 'POISON'";
 
-    Future<Integer> reenqueueErrorTasks(SqlConnection sqlConnection, Set<Long> taskIds) {
+    Future<Integer> reenqueueFromError(SqlConnection sqlConnection, Set<Long> taskIds) {
         long start = System.currentTimeMillis();
-        OffsetDateTime newNextProcessTime = OffsetDateTime.now();
+        OffsetDateTime now = OffsetDateTime.now();
         String idValues = taskIds.stream().map(Object::toString).collect(Collectors.joining(","));
         String sql = SQL_RE_ENQUEUE_ERR_BATCH.replace("{idList}", idValues);
         return SqlTemplate.forUpdate(sqlConnection, sql)
-                .execute(Map.of("newNextProcessTime", newNextProcessTime))
+                .execute(Map.of("now", now))
                 .map(SqlResult::rowCount)
-                .onSuccess(updateCount -> log.info("task(s) reenqueueErrorTasks completed: updateCount={}, taskIds={}, nextProcessTime={}, time={}ms", updateCount, taskIds, newNextProcessTime, System.currentTimeMillis() - start))
+                .onSuccess(updateCount -> log.info("task(s) reenqueueErrorTasks completed: updateCount={}, taskIds={}, nextProcessTime={}, time={}ms", updateCount, taskIds, now, System.currentTimeMillis() - start))
                 .onFailure(err -> log.error("task(s) reenqueueErrorTasks failed: taskIds={}, time:{}ms", taskIds, System.currentTimeMillis() - start, err));
     }
 

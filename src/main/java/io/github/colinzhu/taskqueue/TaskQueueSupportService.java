@@ -12,7 +12,7 @@ public interface TaskQueueSupportService {
         return TaskQueueSupportServiceImpl.getInstance();
     }
 
-    Future<Integer> reenqueueErrorTasks(SqlConnection sqlConnection, Set<Long> taskIds);
+    Future<Integer> reenqueueFromError(SqlConnection sqlConnection, Set<Long> taskIds);
     Future<Integer> markPoison(SqlConnection sqlConnection, Set<Long> taskIds);
     Future<Integer> poisonToError(SqlConnection sqlConnection, Set<Long> taskIds);
     Future<Integer> housekeepPoison(SqlConnection sqlConnection, Set<Long> taskIds, OffsetDateTime createTimeBefore);
