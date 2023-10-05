@@ -16,17 +16,29 @@ If you don't want to introduce MQ into your application, but still want to have 
 - Complete - mark the tasks as COMPLETED or delete the tasks when they are processed successfully
 - Fail - auto mark the tasks as ERROR if they are not processed successfully
 - Delay processing - set a delay period when enqueue / reenqueue a task
-- Support
+- IT support - APIs and Web UI to:
   1. monitor all the tasks status
   2. reprocess ERROR tasks
   3. mark the ERROR tasks as POISON, or mark POISON back to ERROR 
   4. delete POISON tasks
 
+## Try with the `ExampleApp`
+In this repository, there is an `ExampleApp` which shows how to use this library. 
+The `ExampleApp` will auto create an H2 database (http://localhost:9091/) and create the required tables when it's started.
+Here are the steps to run the `ExampleApp`.
+1. clone the repo
+2. run `mvn compile`, this step will extract and copy the required css and js file from webjars
+3. run `ExampleApp.main()`
+4. That all, you can start to play with it:
+   - Launch the task queue support page: http://localhost:31111/taskqueue/support/web/
+   - Trigger to create example tasks (change the number in the URL to create any number of tasks): http://localhost:31111/taskqueue/create/1
+   - Click the "Refresh" button from the task queue support page
+
 ## Main APIs
 - `Task<T>` - Represents a task to be processed by a processor `Function<Task<T>, Future<?>>`
 - `TaskPoller<T>` - Poller to poll tasks from DB and invoke a task processor
 - `PollConfig<T>` - A simple class to store the poller config
-- `TaskQueueService` - Service to 
+- `TaskQueueService` - Service to
   1. enqueue - put task into queue
   2. reenqueue - put a task back to the queue again for next processing
   3. mark the task as COMPLETED
@@ -38,12 +50,19 @@ If you don't want to introduce MQ into your application, but still want to have 
   4. delete POISON tasks
 
 ## Usage
-Enqueue a task
+Enqueue a task - `TaskQueueService.enqueue()`
+
+NOTE: make sure the DB change of the business logic and the task queue change are in the same transaction,
+so that if any step fails, both can be rolled back.
+
+Example:
 ```java
 pool.withTransaction(conn -> insertPayment(conn, p)
     .compose(payment -> taskQueueService.enqueue(conn, "payment.check", "REF_" + payment.getId(), payment)))
 ```
-Create a poller to process tasks from a queue with a task processor
+Create a `TaskPoller` to process tasks from a queue with a task processor
+
+Example:
 ```java
 // prepare a taskProcessor
 PaymentCheckTaskProcessor taskProcessor = new PaymentCheckTaskProcessor(vertx, pool,  TaskQueueService.taskQueue(vertx));
@@ -60,23 +79,16 @@ poller = new TaskPoller<>(vertx, pool, pollConfig);
 poller.start();
 ```
 Within the task processor, complete a task
+
+NOTE: make sure the DB change of the business logic and the task queue change are in the same transaction,
+so that if any step fails, both can be rolled back.
+
+Example:
 ```java
 txn.query("UPDATE PAYMENT SET STATUS = 'PENDING_RELEASE' WHERE ID = " + payment.getId())
     .execute()
     .compose(res -> taskQueueService.complete(txn, task.getId()));
 ```
-
-## Try with the `ExampleApp`
-There is one `ExampleApp` which shows how to use this library. 
-When the `ExampleApp` is started, it will auto create an H2 database (http://localhost:9091/) and create the required tables.
-Here are the steps to run the `ExampleApp`
-1. clone the repo
-2. run `mvn compile`, this step will extract and copy the required css and js file from webjars
-3. run `ExampleApp.main()`
-4. That all, you can start to play with it:
-   - Launch the task queue support page: http://localhost:31111/taskqueue/support/web/
-   - Trigger to create example tasks (change the number in the URL to create any number of tasks): http://localhost:31111/taskqueue/create/1
-   - Click the "Refresh" button from the task queue support page
 
 ## Task status
 - normal flows
