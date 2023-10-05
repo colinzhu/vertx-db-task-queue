@@ -26,10 +26,10 @@ If you don't want to introduce MQ into your application, but still want to have 
 In this repository, there is an `ExampleApp` which shows how to use this library. 
 The `ExampleApp` will auto create an H2 database (http://localhost:9091/) and create the required tables when it's started.
 Here are the steps to run the `ExampleApp`.
-1. clone the repo
-2. run `mvn compile`, this step will extract and copy the required css and js file from webjars
-3. run `ExampleApp.main()`
-4. That all, you can start to play with it:
+1. Clone this repository
+2. Run `mvn compile`, this step will extract and copy the required css and js file from webjars
+3. Run `ExampleApp.main()`
+4. That's all, you can start to play with it now:
    - Launch the task queue support page: http://localhost:31111/taskqueue/support/web/
    - Trigger to create example tasks (change the number in the URL to create any number of tasks): http://localhost:31111/taskqueue/create/1
    - Click the "Refresh" button from the task queue support page
@@ -68,14 +68,14 @@ Example:
 PaymentCheckTaskProcessor taskProcessor = new PaymentCheckTaskProcessor(vertx, pool,  TaskQueueService.taskQueue(vertx));
 
 // register taskProcessor to poller
-PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
+PollConfig<Payment> taskPollerConfig = PollConfig.<Payment>builder()
         .queueName("payment.check")
         .batchSize(20) // maximum how many tasks to be taken for each poll 
         .nextProcessDelay(Duration.ofMinutes(10)) // if a task cannot be completed in 10 minutes, it will be taken from the queue again, so make sure a task can be completed or fail within that period
         .taskProcessor(taskProcessor)
         .payloadClass(Payment.class) // the payload class will be converted to JSON string and stored into DB, jackson library is used
         .build();
-poller = new TaskPoller<>(vertx, pool, pollConfig);
+poller = new TaskPoller<>(vertx, pool, taskPollerConfig);
 poller.start();
 ```
 Within the task processor, complete a task
@@ -149,3 +149,4 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] consider to move TaskSupportVerticle from test to main, create TaskQueueSupportHandler // 2023-10-05
 - [x] get bootstrap and tabulator from webjar by maven build // 2023-10-05
 - [ ] upload to maven central
+- [x] rename PollConfig to TaskPollerConfig // 2023-10-05

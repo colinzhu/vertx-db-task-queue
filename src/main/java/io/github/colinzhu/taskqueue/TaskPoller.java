@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 public class TaskPoller<T> {
     private final Vertx vertx;
     private final JDBCPool pool;
-    private final PollConfig<T> config;
+    private final TaskPollerConfig<T> config;
     private final TaskEntityRepo taskEntityRepo;
     private final TaskQueueServiceImpl taskQueueServiceImpl;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
@@ -31,7 +31,7 @@ public class TaskPoller<T> {
     private boolean isStopped = true; // default is stopped, until start() is invoked
     private long timerId = -1;
     private boolean isNoTaskWaitingForTimer = false;
-    public TaskPoller(Vertx vertx, JDBCPool pool, PollConfig<T> config) {
+    public TaskPoller(Vertx vertx, JDBCPool pool, TaskPollerConfig<T> config) {
         this(vertx, pool, config, TaskEntityRepo.getInstance(), new TaskQueueServiceImpl(vertx, TaskEntityRepo.getInstance()));
         pollerId = "poller-" + config.getQueueName() + "-" + Integer.toHexString(this.hashCode());
         log.info("{} created: {}", pollerId, config);

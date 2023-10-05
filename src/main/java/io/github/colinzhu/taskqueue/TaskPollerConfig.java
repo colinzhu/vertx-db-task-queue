@@ -8,7 +8,7 @@ import java.util.function.Function;
 
 @Builder
 @Value
-public class PollConfig<T> {
+public class TaskPollerConfig<T> {
     String queueName;
     int batchSize;
     Duration nextProcessDelay;

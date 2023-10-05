@@ -83,7 +83,7 @@ class TaskQueueTest {
             case "COMPLETE_DELETE" -> "Q3-need-completeDelete";
             default -> null;
         };
-        PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
+        TaskPollerConfig<Payment> taskPollerConfig = TaskPollerConfig.<Payment>builder()
                 .queueName(queueName)
                 .batchSize(5)
                 .nextProcessDelay(Duration.ofMinutes(10))
@@ -91,7 +91,7 @@ class TaskQueueTest {
                 .payloadClass(Payment.class)
                 .noTaskPollInterval(Duration.ofMillis(500)) // make sure it's smaller then the waiting time in verification
                 .build();
-        TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
+        TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, taskPollerConfig);
         poller.start();
 
         // enqueue a task
@@ -121,7 +121,6 @@ class TaskQueueTest {
                 }));
             });
         }));
-
     }
 
     @ParameterizedTest
@@ -153,7 +152,7 @@ class TaskQueueTest {
             case "COMPLETE_DELETE" -> "Q-already-completed-deleted-by-another-poller";
             default -> null;
         };
-        PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
+        TaskPollerConfig<Payment> taskPollerConfig = TaskPollerConfig.<Payment>builder()
                 .queueName(queueName)
                 .batchSize(5)
                 .nextProcessDelay(Duration.ofMinutes(10))
@@ -161,7 +160,7 @@ class TaskQueueTest {
                 .payloadClass(Payment.class)
                 .noTaskPollInterval(Duration.ofMillis(500)) // make sure it's smaller then the waiting time in verification
                 .build();
-        TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
+        TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, taskPollerConfig);
         poller.start();
 
         // enqueue a task
@@ -202,7 +201,7 @@ class TaskQueueTest {
         };
 
         // prepare a poller
-        PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
+        TaskPollerConfig<Payment> taskPollerConfig = TaskPollerConfig.<Payment>builder()
                 .queueName("Q3-poller-stopped")
                 .batchSize(5)
                 .nextProcessDelay(Duration.ofMinutes(10))
@@ -210,7 +209,7 @@ class TaskQueueTest {
                 .payloadClass(Payment.class)
                 .noTaskPollInterval(Duration.ofMillis(500)) // make sure it's smaller then the waiting time in verification
                 .build();
-        TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
+        TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, taskPollerConfig);
         poller.start();
 
         // stop the poller
@@ -269,7 +268,7 @@ class TaskQueueTest {
             case "ERR_BEFORE_TXN" -> "Q-ERR_BEFORE_TXN";
             default -> null;
         };
-        PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
+        TaskPollerConfig<Payment> taskPollerConfig = TaskPollerConfig.<Payment>builder()
                 .queueName(queueName)
                 .batchSize(5)
                 .nextProcessDelay(Duration.ofMinutes(10))
@@ -277,7 +276,7 @@ class TaskQueueTest {
                 .payloadClass(Payment.class)
                 .noTaskPollInterval(Duration.ofMillis(500)) // make sure it's smaller then the waiting time in verification
                 .build();
-        TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
+        TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, taskPollerConfig);
         poller.start();
 
         // enqueue a task

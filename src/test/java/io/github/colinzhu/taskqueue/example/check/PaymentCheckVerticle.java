@@ -1,7 +1,7 @@
 package io.github.colinzhu.taskqueue.example.check;
 
 import io.github.colinzhu.taskqueue.H2Database;
-import io.github.colinzhu.taskqueue.PollConfig;
+import io.github.colinzhu.taskqueue.TaskPollerConfig;
 import io.github.colinzhu.taskqueue.TaskPoller;
 import io.github.colinzhu.taskqueue.TaskQueueService;
 import io.github.colinzhu.taskqueue.example.Payment;
@@ -23,7 +23,7 @@ public class PaymentCheckVerticle extends AbstractVerticle {
         PaymentCheckTaskProcessor taskProcessor = new PaymentCheckTaskProcessor(vertx, pool,  TaskQueueService.taskQueue(vertx));
 
         // register taskProcessor to poller
-        PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
+        TaskPollerConfig<Payment> taskPollerConfig = TaskPollerConfig.<Payment>builder()
                 .queueName("payment.check")
                 .batchSize(20)
                 .nextProcessDelay(Duration.ofMinutes(10))
@@ -31,7 +31,7 @@ public class PaymentCheckVerticle extends AbstractVerticle {
                 .payloadClass(Payment.class)
                 .noTaskPollInterval(Duration.ofSeconds(10))
                 .build();
-        poller = new TaskPoller<>(vertx, pool, pollConfig);
+        poller = new TaskPoller<>(vertx, pool, taskPollerConfig);
         poller.start();
 
         log.info("{}[{}] instance started", PaymentCheckVerticle.class.getSimpleName(), Integer.toHexString(this.hashCode()));
