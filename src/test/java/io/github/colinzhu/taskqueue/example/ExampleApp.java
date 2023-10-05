@@ -5,10 +5,8 @@ import ch.qos.logback.classic.Logger;
 import io.github.colinzhu.taskqueue.H2Database;
 import io.github.colinzhu.taskqueue.example.check.PaymentCheckTaskProcessor;
 import io.github.colinzhu.taskqueue.example.check.PaymentCheckVerticle;
-import io.github.colinzhu.taskqueue.example.create.PaymentCreateVerticle;
 import io.github.colinzhu.taskqueue.example.release.PaymentReleaseVerticle;
 import io.vertx.core.DeploymentOptions;
-import io.vertx.core.Verticle;
 import io.vertx.core.Vertx;
 import io.vertx.jdbcclient.JDBCPool;
 import lombok.SneakyThrows;
@@ -37,11 +35,9 @@ public class ExampleApp {
         JDBCPool pool = H2Database.getJdbcPool(vertx, false);
         H2Database.createTables(pool)
                 .onSuccess(tablesCreated -> {
-                    Verticle createVerticle = new PaymentCreateVerticle(pool);
                     vertx.deployVerticle(PaymentCheckVerticle.class, new DeploymentOptions().setInstances(2))
                             .compose(any -> vertx.deployVerticle(PaymentReleaseVerticle.class, new DeploymentOptions().setInstances(2)))
-                            .compose(any -> vertx.deployVerticle(createVerticle))
-                            .compose(any -> vertx.deployVerticle(new TaskSupportVerticle()))
+                            .compose(any -> vertx.deployVerticle(WebVerticle::new, new DeploymentOptions().setInstances(2)))
                             .onFailure(err -> log.error("error", err));
                 })
                 .onFailure(err -> log.error("Unable to create tables", err));

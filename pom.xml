@@ -1,138 +1,172 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.github.colinzhu</groupId>
-  <artifactId>vertx-db-task-queue</artifactId>
-  <version>1.0.0-SNAPSHOT</version>
+    <groupId>io.github.colinzhu</groupId>
+    <artifactId>vertx-db-task-queue</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
 
-  <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-    <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
-    <maven-shade-plugin.version>3.2.4</maven-shade-plugin.version>
-    <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
-    <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
+        <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
+        <maven-shade-plugin.version>3.2.4</maven-shade-plugin.version>
+        <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
+        <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
 
-    <vertx.version>4.4.4</vertx.version>
-    <maven.compiler.release>17</maven.compiler.release>
-    <launcher.class>io.vertx.core.Launcher</launcher.class>
-  </properties>
+        <vertx.version>4.4.4</vertx.version>
+        <maven.compiler.release>17</maven.compiler.release>
+    </properties>
 
-  <dependencyManagement>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.vertx</groupId>
+                <artifactId>vertx-stack-depchain</artifactId>
+                <version>${vertx.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
-      <dependency>
-        <groupId>io.vertx</groupId>
-        <artifactId>vertx-stack-depchain</artifactId>
-        <version>${vertx.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.24</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>2.0.6</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.4.5</version>
+        </dependency>
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-jdbc-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-sql-client-templates</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-junit5</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>2.2.220</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
-  </dependencyManagement>
 
-  <dependencies>
-    <dependency>
-      <groupId>org.projectlombok</groupId>
-      <artifactId>lombok</artifactId>
-      <version>1.18.24</version>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.fasterxml.jackson.core</groupId>
-      <artifactId>jackson-databind</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.fasterxml.jackson.datatype</groupId>
-      <artifactId>jackson-datatype-jsr310</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-api</artifactId>
-      <version>2.0.6</version>
-    </dependency>
-    <dependency>
-      <groupId>ch.qos.logback</groupId>
-      <artifactId>logback-classic</artifactId>
-      <version>1.4.5</version>
-    </dependency>
-    <dependency>
-      <groupId>io.vertx</groupId>
-      <artifactId>vertx-web</artifactId>
-    </dependency>
-<!--    <dependency>-->
-<!--      <groupId>io.vertx</groupId>-->
-<!--      <artifactId>vertx-web-openapi</artifactId>-->
-<!--    </dependency>-->
-<!--    <dependency>-->
-<!--      <groupId>io.vertx</groupId>-->
-<!--      <artifactId>vertx-web-client</artifactId>-->
-<!--    </dependency>-->
-    <dependency>
-      <groupId>io.vertx</groupId>
-      <artifactId>vertx-jdbc-client</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.vertx</groupId>
-      <artifactId>vertx-sql-client-templates</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.vertx</groupId>
-      <artifactId>vertx-junit5</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.h2database</groupId>
-      <artifactId>h2</artifactId>
-      <version>2.2.220</version>
-    </dependency>
-<!--    <dependency>-->
-<!--      <groupId>org.junit.jupiter</groupId>-->
-<!--      <artifactId>junit-jupiter-api</artifactId>-->
-<!--&lt;!&ndash;      <version>${junit-jupiter.version}</version>&ndash;&gt;-->
-<!--      <scope>test</scope>-->
-<!--    </dependency>-->
-<!--    <dependency>-->
-<!--      <groupId>org.junit.jupiter</groupId>-->
-<!--      <artifactId>junit-jupiter-engine</artifactId>-->
-<!--&lt;!&ndash;      <version>${junit-jupiter.version}</version>&ndash;&gt;-->
-<!--      <scope>test</scope>-->
-<!--    </dependency>-->
-  </dependencies>
-
-  <build>
-    <plugins>
-      <plugin>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <version>${maven-compiler-plugin.version}</version>
-        <configuration>
-          <release>17</release>
-        </configuration>
-      </plugin>
-<!--      <plugin>-->
-<!--        <groupId>org.apache.maven.plugins</groupId>-->
-<!--        <artifactId>maven-shade-plugin</artifactId>-->
-<!--        <version>3.2.4</version>-->
-<!--        <executions>-->
-<!--          <execution>-->
-<!--            <phase>package</phase>-->
-<!--            <goals>-->
-<!--              <goal>shade</goal>-->
-<!--            </goals>-->
-<!--            <configuration>-->
-<!--              <transformers>-->
-<!--                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">-->
-<!--                  <mainClass>io.github.colinzhu.taskqueue.example.old.DummyCheckServer</mainClass>-->
-<!--                </transformer>-->
-<!--              </transformers>-->
-<!--            </configuration>-->
-<!--          </execution>-->
-<!--        </executions>-->
-<!--      </plugin>-->
-    </plugins>
-  </build>
+    <build>
+        <plugins>
+            <plugin><!-- to extract js files from webjars -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>2.8</version>
+                <executions>
+                    <execution>
+                        <id>unpack</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>unpack</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>org.webjars</groupId>
+                                    <artifactId>bootstrap</artifactId>
+                                    <version>4.6.2</version>
+                                    <outputDirectory>${project.build.directory}</outputDirectory>
+                                    <includes>**\/bootstrap.min.js, **\/bootstrap.min.css</includes>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.webjars.npm</groupId>
+                                    <artifactId>tabulator-tables</artifactId>
+                                    <version>5.5.2</version>
+                                    <outputDirectory>${project.build.directory}</outputDirectory>
+                                    <includes>**\/tabulator.min.js, **\/tabulator_bootstrap4.min.css, **\/tabulator.min.css</includes>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin><!-- copy js and css files to resource folder -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.0.0</version>
+                <executions>
+                    <execution>
+                        <phase>generate-resources</phase>
+                        <configuration>
+                            <target>
+                                <copy file="${project.build.directory}/META-INF/resources/webjars/bootstrap/4.6.2/js/bootstrap.min.js" todir="${project.basedir}/src/main/resources/io/github/colinzhu/taskqueue/web/lib" />
+                                <copy file="${project.build.directory}/META-INF/resources/webjars/bootstrap/4.6.2/css/bootstrap.min.css" todir="${project.basedir}/src/main/resources/io/github/colinzhu/taskqueue/web/lib" />
+                                <copy file="${project.build.directory}/META-INF/resources/webjars/tabulator-tables/5.5.2/dist/css/tabulator_bootstrap4.min.css" todir="${project.basedir}/src/main/resources/io/github/colinzhu/taskqueue/web/lib" />
+                                <copy file="${project.build.directory}/META-INF/resources/webjars/tabulator-tables/5.5.2/dist/css/tabulator.min.css" todir="${project.basedir}/src/main/resources/io/github/colinzhu/taskqueue/web/lib" />
+                                <copy file="${project.build.directory}/META-INF/resources/webjars/tabulator-tables/5.5.2/dist/js/tabulator.min.js" todir="${project.basedir}/src/main/resources/io/github/colinzhu/taskqueue/web/lib" />
+                            </target>
+                        </configuration>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${maven-compiler-plugin.version}</version>
+                <configuration>
+                    <release>17</release>
+                </configuration>
+            </plugin>
+            <!--      <plugin>-->
+            <!--        <groupId>org.apache.maven.plugins</groupId>-->
+            <!--        <artifactId>maven-shade-plugin</artifactId>-->
+            <!--        <version>3.2.4</version>-->
+            <!--        <executions>-->
+            <!--          <execution>-->
+            <!--            <phase>package</phase>-->
+            <!--            <goals>-->
+            <!--              <goal>shade</goal>-->
+            <!--            </goals>-->
+            <!--            <configuration>-->
+            <!--              <transformers>-->
+            <!--                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">-->
+            <!--                  <mainClass>io.github.colinzhu.taskqueue.example.old.DummyCheckServer</mainClass>-->
+            <!--                </transformer>-->
+            <!--              </transformers>-->
+            <!--            </configuration>-->
+            <!--          </execution>-->
+            <!--        </executions>-->
+            <!--      </plugin>-->
+        </plugins>
+    </build>
 
 
 </project>

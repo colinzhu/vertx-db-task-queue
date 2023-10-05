@@ -2,9 +2,8 @@ package io.github.colinzhu.taskqueue.example.create;
 
 import io.github.colinzhu.taskqueue.TaskQueueService;
 import io.github.colinzhu.taskqueue.example.Payment;
-import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
-import io.vertx.core.http.HttpServer;
+import io.vertx.core.Vertx;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.jdbcclient.JDBCPool;
@@ -16,30 +15,23 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 @Slf4j
 @RequiredArgsConstructor
-public class PaymentCreateVerticle extends AbstractVerticle {
+public class PaymentCreateHandler implements Supplier<Router> {
+    private final Vertx vertx;
     private final JDBCPool pool;
+    private final TaskQueueService taskQueueService;
 
     @Override
-    public void start() throws Exception {
-        super.start();
-        startHttpServer();
-        log.info("{}[{}] instance started", PaymentCreateVerticle.class.getSimpleName(), this.hashCode());
-    }
-
-    private void startHttpServer() {
-        HttpServer server = vertx.createHttpServer();
+    public Router get() {
         Router router = Router.router(vertx);
-        router.route("/create/:count").handler(this::handleRouting);
-        server.requestHandler(router).listen(31110)
-                .onSuccess(httpServer -> log.info("payment create server started. http://localhost:{}/create/1", httpServer.actualPort()))
-                .onFailure(err -> log.error("failed to start payment create server.", err));
+        router.route("/create/:count").handler(this::create);
+        return router;
     }
 
-    private void handleRouting(RoutingContext routingContext) {
-        TaskQueueService taskQueueService = TaskQueueService.taskQueue(vertx);
+    private void create(RoutingContext routingContext) {
         long start = System.currentTimeMillis();
         int count;
         try {

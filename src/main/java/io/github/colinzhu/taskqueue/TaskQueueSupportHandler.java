@@ -1,13 +1,10 @@
-package io.github.colinzhu.taskqueue.example;
+package io.github.colinzhu.taskqueue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import io.github.colinzhu.taskqueue.H2Database;
-import io.github.colinzhu.taskqueue.TaskQueueSupportService;
-import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
-import io.vertx.core.http.HttpServer;
+import io.vertx.core.Vertx;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.Router;
@@ -16,53 +13,38 @@ import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.FileSystemAccess;
 import io.vertx.ext.web.handler.StaticHandler;
 import io.vertx.jdbcclient.JDBCPool;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Slf4j
-public class TaskSupportVerticle extends AbstractVerticle {
-    private JDBCPool pool;
-    private final TaskQueueSupportService taskQueueSupportService = TaskQueueSupportService.getInstance();
+@RequiredArgsConstructor
+public class TaskQueueSupportHandler implements Supplier<Router> {
+    private final Vertx vertx;
+    private final JDBCPool pool;
+    private final TaskQueueSupportService taskQueueSupportService;
 
     @Override
-    public void start() {
-        pool = H2Database.getJdbcPool(vertx, false);
+    public Router get() {
         ObjectMapper mapper = DatabindCodec.mapper();
         mapper.registerModule(new JavaTimeModule()).disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        startHttpServer();
-    }
 
-    private void startHttpServer() {
-        HttpServer server = vertx.createHttpServer();
         Router router = Router.router(vertx);
-        router.route("/support/taskqueue/web/*").handler(StaticHandler.create(FileSystemAccess.ROOT, "web").setCachingEnabled(false));
+        router.route("/support/web/*").handler(StaticHandler.create(FileSystemAccess.ROOT, "io/github/colinzhu/taskqueue/web").setCachingEnabled(false));
         router.route().handler(BodyHandler.create());
-        router.route("/support/taskqueue/api/reenqueue").handler(this::reenqueue);
-        router.route("/support/taskqueue/api/mark-poison").handler(this::markPoison);
-        router.route("/support/taskqueue/api/poison-to-error").handler(this::poisonToError);
-        router.route("/support/taskqueue/api/housekeep-poison").handler(this::housekeepPoison);
-        router.route("/support/taskqueue/api/search/:queueName/:status").handler(this::search);
-        router.route("/support/taskqueue/api/count").handler(this::count);
-
-        String logMsg = """
-                task queue support server started.
-                http://localhost:#{port}/support/taskqueue/api/reenqueue
-                http://localhost:#{port}/support/taskqueue/api/mark-poison
-                http://localhost:#{port}/support/taskqueue/api/poison-to-error
-                http://localhost:#{port}/support/taskqueue/api/housekeep-poison
-                http://localhost:#{port}/support/taskqueue/api/search/payment.check/CREATED?size=5
-                http://localhost:#{port}/support/taskqueue/api/count
-                http://localhost:#{port}/support/taskqueue/web/
-                                """;
-
-        server.requestHandler(router).listen(31111)
-                .onSuccess(httpServer -> log.info(logMsg.replace("#{port}", String.valueOf(httpServer.actualPort()))))
-                .onFailure(err -> log.error("failed to start task queue support.", err));
+        router.route("/support/api/reenqueue").handler(this::reenqueue);
+        router.route("/support/api/mark-poison").handler(this::markPoison);
+        router.route("/support/api/poison-to-error").handler(this::poisonToError);
+        router.route("/support/api/housekeep-poison").handler(this::housekeepPoison);
+        router.route("/support/api/search/:queueName/:status").handler(this::search);
+        router.route("/support/api/count").handler(this::count);
+        return router;
     }
 
     private void reenqueue(RoutingContext routingContext) {

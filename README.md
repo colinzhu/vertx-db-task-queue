@@ -125,5 +125,6 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] update junit to make it more clear and reliable // 2023-10-05
 - [ ] consider to change task ID from long to UUID
 - [ ] consider to store process result into DB
-- [ ] consider to move TaskSupportVerticle from test to main
+- [x] consider to move TaskSupportVerticle from test to main, create TaskQueueSupportHandler // 2023-10-05
+- [x] get bootstrap and tabulator from webjar by maven build // 2023-10-05
 - [ ] upload to maven central
