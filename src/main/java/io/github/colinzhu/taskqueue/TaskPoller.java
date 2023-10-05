@@ -23,7 +23,7 @@ public class TaskPoller<T> {
     private final JDBCPool pool;
     private final PollConfig<T> config;
     private final TaskEntityRepo taskEntityRepo;
-    private final TaskQueueServiceDbImpl taskQueueServiceDb;
+    private final TaskQueueServiceImpl taskQueueServiceImpl;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     private String pollerId;
@@ -32,7 +32,7 @@ public class TaskPoller<T> {
     private long timerId = -1;
     private boolean isNoTaskWaitingForTimer = false;
     public TaskPoller(Vertx vertx, JDBCPool pool, PollConfig<T> config) {
-        this(vertx, pool, config, TaskEntityRepo.getInstance(), new TaskQueueServiceDbImpl(vertx, TaskEntityRepo.getInstance()));
+        this(vertx, pool, config, TaskEntityRepo.getInstance(), new TaskQueueServiceImpl(vertx, TaskEntityRepo.getInstance()));
         pollerId = "poller-" + config.getQueueName() + "-" + Integer.toHexString(this.hashCode());
         log.info("{} created: {}", pollerId, config);
 
@@ -169,7 +169,7 @@ public class TaskPoller<T> {
                 .recover(err -> {
                     log.error("{} [taskId:{}] Error when try to process the task. Will try to update task status to ERROR.", pollerId, taskEntity.getId(), err);
                     // for recover to mark the task as ERROR, it needs to be in a separate connection
-                    return pool.withConnection(conn -> taskQueueServiceDb.fail(conn, taskEntity.getId()).compose(count -> Future.succeededFuture()));
+                    return pool.withConnection(conn -> taskQueueServiceImpl.fail(conn, taskEntity.getId()).compose(count -> Future.succeededFuture()));
                 });
     }
 

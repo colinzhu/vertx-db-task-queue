@@ -16,7 +16,7 @@ import java.time.Duration;
  */
 public interface TaskQueueService {
     static TaskQueueService taskQueue(Vertx vertx) {
-        return new TaskQueueServiceDbImpl(vertx, TaskEntityRepo.getInstance());
+        return new TaskQueueServiceImpl(vertx, TaskEntityRepo.getInstance());
     }
 
     /**
@@ -69,5 +69,4 @@ public interface TaskQueueService {
      * @return future of number of task updated
      */
     Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay);
-    Future<Integer> fail(SqlConnection sqlConnection, long taskId);
 }

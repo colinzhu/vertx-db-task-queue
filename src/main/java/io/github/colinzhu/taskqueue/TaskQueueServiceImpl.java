@@ -17,7 +17,7 @@ import static io.github.colinzhu.taskqueue.TaskStatus.*;
 
 @Slf4j
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-class TaskQueueServiceDbImpl implements TaskQueueService {
+class TaskQueueServiceImpl implements TaskQueueService {
     private final Vertx vertx;
     private final TaskEntityRepo taskEntityRepo;
 
