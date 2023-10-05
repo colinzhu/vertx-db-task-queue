@@ -37,7 +37,7 @@ public class ExampleApp {
                 .onSuccess(tablesCreated -> {
                     vertx.deployVerticle(PaymentCheckVerticle.class, new DeploymentOptions().setInstances(2))
                             .compose(any -> vertx.deployVerticle(PaymentReleaseVerticle.class, new DeploymentOptions().setInstances(2)))
-                            .compose(any -> vertx.deployVerticle(WebVerticle::new, new DeploymentOptions().setInstances(2)))
+                            .compose(any -> vertx.deployVerticle(WebVerticle.class, new DeploymentOptions().setInstances(2)))
                             .onFailure(err -> log.error("error", err));
                 })
                 .onFailure(err -> log.error("Unable to create tables", err));
@@ -62,7 +62,6 @@ public class ExampleApp {
                     }
                     System.out.println("Successfully stopped vertx");
                 })
-
         );
     }
 

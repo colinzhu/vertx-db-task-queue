@@ -66,8 +66,17 @@ txn.query("UPDATE PAYMENT SET STATUS = 'PENDING_RELEASE' WHERE ID = " + payment.
     .compose(res -> taskQueueService.complete(txn, task.getId()));
 ```
 
-## Example App
-Please refer to `ExampleApp`, `TaskQueueTest` in test package
+## Try with the `ExampleApp`
+There is one `ExampleApp` which shows how to use this library. 
+When the `ExampleApp` is started, it will auto create an H2 database (http://localhost:9091/) and create the required tables.
+Here are the steps to run the `ExampleApp`
+1. clone the repo
+2. run `mvn compile`, this step will extract and copy the required css and js file from webjars
+3. run `ExampleApp.main()`
+4. That all, you can start to play with it:
+   - Launch the task queue support page: http://localhost:31111/taskqueue/support/web/
+   - Trigger to create example tasks (change the number in the URL to create any number of tasks): http://localhost:31111/taskqueue/create/1
+   - Click the "Refresh" button from the task queue support page
 
 ## Task status
 - normal flows
