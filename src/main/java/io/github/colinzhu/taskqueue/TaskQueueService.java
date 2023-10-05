@@ -45,12 +45,21 @@ public interface TaskQueueService {
     <T> Future<Long> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration delay);
 
     /**
-     * To complete the task or remove from the queue
+     * To complete the task
      * @param sqlConnection DB transaction
      * @param taskId the task ID
-     * @return future of number of task updated / removed
+     * @return future of number of task updated
      */
     Future<Integer> complete(SqlConnection sqlConnection, long taskId);
+
+    /**
+     * To complete by deleting the task
+     * @param sqlConnection DB transaction
+     * @param taskId the task ID
+     * @return future of number of task deleted
+     */
+
+    Future<Integer> completeDelete(SqlConnection sqlConnection, long taskId);
 
     /**
      * Update the task so that it can be processed again later

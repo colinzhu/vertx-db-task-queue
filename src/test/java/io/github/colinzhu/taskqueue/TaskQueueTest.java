@@ -19,9 +19,10 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.List;
 import java.util.function.Function;
 
+import static io.github.colinzhu.taskqueue.TaskStatus.COMPLETED;
+import static io.github.colinzhu.taskqueue.TaskStatus.CREATED;
 import static org.slf4j.Logger.ROOT_LOGGER_NAME;
 
 @ExtendWith(VertxExtension.class)
@@ -53,100 +54,139 @@ class TaskQueueTest {
 
     @ParameterizedTest
     @DisplayName("Normal - within one transaction, business entity object updated, tasks finished (deleted)")
-    @CsvSource({"FINISH", "REENQUEUE"})
+    @CsvSource({"COMPLETE", "REENQUEUE", "COMPLETE_DELETE"})
     void testNormal(String afterProcessAction, Vertx vertx, VertxTestContext testContext) {
         Checkpoint checkpoint = testContext.checkpoint(2);
+
+        // prepare one object to be put into the queue
         Payment payment = new Payment("CREATED", OffsetDateTime.now());
-        String queueName = "REENQUEUE".equals(afterProcessAction) ? "Q2-need-reenquueue" : "Q1-need-finish";
-        pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p)))
-                .onComplete(testContext.succeeding(taskId -> {
-                    vertx.setTimer(2000, id -> {
-                        // verify payment status
-                        retrievePayment(payment.getId()).onComplete(testContext.succeeding(res -> {
-                            Assertions.assertEquals("PROCESSED", res.getStatus(), "PAYMENT status should be changed");
-                            checkpoint.flag();
-                        }));
 
-                        // verify task
-                        retrieveTask(taskId).onComplete(testContext.succeeding(res -> {
-                            if ("REENQUEUE".equals(afterProcessAction)) {
-                                Assertions.assertTrue(List.of("CREATED","PROCESSING").contains(res.getString("STATUS")), "task should still ba available for next processing");
-                            } else {
-                                Assertions.assertNull(res, "task should be deleted");
-                            }
-                            checkpoint.flag();
-                        }));
-                    });
-                }));
-
+        // prepare a task processor
         Function<Task<Payment>, Future<?>> taskProcessor = task -> {
-            Assertions.assertEquals(payment.getCreateTime().toInstant(), task.getPayload().getCreateTime().toInstant(), "date time should be same as the original object");
+            Assertions.assertEquals(payment.getCreateTime().toInstant(), task.getPayload().getCreateTime().toInstant(), "the task payload object should be same as the original object");
             log.info("Processing {}", task.getPayload());
             Function<SqlConnection, Future<Integer>> function;
             if ("REENQUEUE".equals(afterProcessAction)) {
-                function =  conn -> updatePayment(conn, task.getPayload())
-                        .compose(p -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5)));
-            } else {
+                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5))); // when verify in 1 sec, not yet in processing status
+            } else if ("COMPLETE".equals(afterProcessAction)) {
                 function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.complete(conn, task.getId()));
+            } else {
+                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.completeDelete(conn, task.getId()));
             }
             return pool.withTransaction(function);
         };
 
+        // start a poller
+        String queueName = switch (afterProcessAction) {
+            case "COMPLETE" -> "Q1-need-complete";
+            case "REENQUEUE" -> "Q2-need-reenquueue";
+            case "COMPLETE_DELETE" -> "Q3-need-completeDelete";
+            default -> null;
+        };
         PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
                 .queueName(queueName)
                 .batchSize(5)
                 .nextProcessDelay(Duration.ofMinutes(10))
                 .taskProcessor(taskProcessor)
                 .payloadClass(Payment.class)
-                .noTaskPollInterval(Duration.ofSeconds(1))
-                .hasTaskPollInterval(Duration.ofSeconds(1)).build();
+                .noTaskPollInterval(Duration.ofMillis(500)) // make sure it's smaller then the waiting time in verification
+                .build();
         TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
-    }
 
-    @Test
-    @DisplayName("Task already finished by another poller")
-    void testTaskAlreadyFinishedByAnotherPoller(Vertx vertx, VertxTestContext testContext) {
-        Checkpoint checkpoint = testContext.checkpoint(2);
-        Payment payment = new Payment("CREATED", OffsetDateTime.now());
-        String queueName = "Q-already-finished-by-another-poller";
-        pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p)))
-                .onComplete(testContext.succeeding(taskId -> {
-                    vertx.setTimer(2000, id -> {
-                        // verify payment status
-                        retrievePayment(payment.getId()).onComplete(testContext.succeeding(res -> {
-                            Assertions.assertEquals("STATUS_ANOTHER_POLLER", res.getStatus(), "PAYMENT status should still be STATUS_ANOTHER_POLLER instead of STATUS_CURRENT_POLLER");
-                            checkpoint.flag();
-                        }));
+        // enqueue a task
+        log.info("Payment created: {}", payment);
+        Future<Long> enqueueTask = pool.withTransaction(conn -> savePayment(conn, payment)
+                .compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p)));
 
-                        // verify task
-                        retrieveTask(taskId).onComplete(testContext.succeeding(res -> {
-                            Assertions.assertNull(res, "task should not be available, already deleted by another poller");
-                            checkpoint.flag();
-                        }));
-                    });
+        // verify after the poller processing the task
+        enqueueTask.onComplete(testContext.succeeding(taskId -> {
+            vertx.setTimer(1000, id -> { // make sure the poller has already processed the task
+                // verify payment status
+                retrievePayment(payment.getId()).onComplete(testContext.succeeding(res -> {
+                    Assertions.assertEquals("PROCESSED", res.getStatus(), "PAYMENT status should be changed");
+                    checkpoint.flag();
                 }));
 
+                // verify task
+                retrieveTask(taskId).onComplete(testContext.succeeding(res -> {
+                    if ("REENQUEUE".equals(afterProcessAction)) {
+                        Assertions.assertSame(CREATED, TaskStatus.valueOf(res.getString("STATUS")), "task should still be available for next processing");
+                    } else if ("COMPLETE".equals(afterProcessAction)) {
+                        Assertions.assertSame(COMPLETED, TaskStatus.valueOf(res.getString("STATUS")), "task should still be in COMPLETED status");
+                    } else {
+                        Assertions.assertNull(res, "task should be deleted");
+                    }
+                    checkpoint.flag();
+                }));
+            });
+        }));
+
+    }
+
+    @ParameterizedTest
+    @DisplayName("Task already completed / deleted by another poller")
+    @CsvSource({"COMPLETE", "COMPLETE_DELETE"})
+    void testTaskAlreadyCompletedDeletedByAnotherPoller(String afterProcessAction, Vertx vertx, VertxTestContext testContext) {
+        Checkpoint checkpoint = testContext.checkpoint(2);
+        Payment payment = new Payment("CREATED", OffsetDateTime.now());
+
+        // prepare a task processor
         Function<Task<Payment>, Future<?>> taskProcessor = task -> {
             // simulate task already finished by another poller (payment status updated to "ABC", task deleted
-            var futureOfAnother = pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskQueueService.complete(conn, task.getId())));
+            Future<Integer> futureOfAnother;
+            if ("COMPLETE_DELETE".equals(afterProcessAction)) {
+                futureOfAnother = pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskQueueService.completeDelete(conn, task.getId())));
+            } else {
+                futureOfAnother = pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskQueueService.complete(conn, task.getId())));
+            }
 
             Function<SqlConnection, Future<Integer>> function = conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_CURRENT_POLLER")
-                        .compose(p -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5)));
+                    .compose(p -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5)));
 
             return futureOfAnother.compose(any -> pool.withTransaction(function));
         };
 
+        // prepare a poller
+        String queueName = switch (afterProcessAction) {
+            case "COMPLETE" -> "Q-already-completed-by-another-poller";
+            case "COMPLETE_DELETE" -> "Q-already-completed-deleted-by-another-poller";
+            default -> null;
+        };
         PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
                 .queueName(queueName)
                 .batchSize(5)
                 .nextProcessDelay(Duration.ofMinutes(10))
                 .taskProcessor(taskProcessor)
                 .payloadClass(Payment.class)
-                .noTaskPollInterval(Duration.ofSeconds(1))
-                .hasTaskPollInterval(Duration.ofSeconds(1)).build();
+                .noTaskPollInterval(Duration.ofMillis(500)) // make sure it's smaller then the waiting time in verification
+                .build();
         TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
+
+        // enqueue a task
+        Future<Long> enqueueTask = pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p)));
+
+        // verify after the poller processing the task
+        enqueueTask.onComplete(testContext.succeeding(taskId -> {
+            vertx.setTimer(1000, id -> { // make sure the poller has already processed the task
+                // verify payment status
+                retrievePayment(payment.getId()).onComplete(testContext.succeeding(res -> {
+                    Assertions.assertEquals("STATUS_ANOTHER_POLLER", res.getStatus(), "PAYMENT status should still be STATUS_ANOTHER_POLLER instead of STATUS_CURRENT_POLLER");
+                    checkpoint.flag();
+                }));
+
+                // verify task
+                retrieveTask(taskId).onComplete(testContext.succeeding(res -> {
+                    if ("COMPLETE_DELETE".equals(afterProcessAction)) {
+                        Assertions.assertNull(res, "task should not be available, already deleted by another poller");
+                    } else {
+                        Assertions.assertEquals(COMPLETED, TaskStatus.valueOf(res.getString("STATUS")));
+                    }
+                    checkpoint.flag();
+                }));
+            });
+        }));
     }
 
     @Test
@@ -154,67 +194,60 @@ class TaskQueueTest {
     void testPollerStopped(Vertx vertx, VertxTestContext testContext) {
         Checkpoint checkpoint = testContext.checkpoint(3);
 
+        // prepare a task processor
         Function<Task<Payment>, Future<?>> taskProcessor = task -> {
             log.info("Processing {}", task.getPayload());
             return pool.withTransaction(conn -> updatePayment(conn, task.getPayload())
                     .compose(p -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5))));
         };
 
+        // prepare a poller
         PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
                 .queueName("Q3-poller-stopped")
                 .batchSize(5)
                 .nextProcessDelay(Duration.ofMinutes(10))
                 .taskProcessor(taskProcessor)
                 .payloadClass(Payment.class)
-                .noTaskPollInterval(Duration.ofSeconds(1))
-                .hasTaskPollInterval(Duration.ofSeconds(1)).build();
+                .noTaskPollInterval(Duration.ofMillis(500)) // make sure it's smaller then the waiting time in verification
+                .build();
         TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
-        vertx.setTimer(1000, id -> poller.stop().onSuccess(v -> log.info("poller stopped.")).onSuccess(v -> checkpoint.flag()));
 
-        Payment payment = new Payment("CREATED", OffsetDateTime.now());
-        pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, "Q3-poller-stopped", "ref1", p)))
-                .onComplete(testContext.succeeding(taskId -> {
-                    vertx.setTimer(2000, id -> {
+        // stop the poller
+        vertx.setTimer(1000, id -> poller.stop()  // make sure the poller has already processed the task
+                .onSuccess(v -> log.info("poller stopped."))
+                .onSuccess(v -> checkpoint.flag())
+                .onSuccess(v -> {
+                    // after the poller is stopped, enqueue a task
+                    Payment payment = new Payment("CREATED", OffsetDateTime.now());
+                    Future<Long> enqueueTask = pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, "Q3-poller-stopped", "ref1", p)));
+
+                    // expect the task should not be processed
+                    enqueueTask.onComplete(testContext.succeeding(taskId -> {
                         // verify payment status
                         retrievePayment(payment.getId()).onComplete(testContext.succeeding(res -> {
-                            //Assertions.assertEquals("CREATED", res.getStatus(), "PAYMENT should not be changed");
+                            Assertions.assertEquals("CREATED", res.getStatus(), "PAYMENT should not be changed");
                             checkpoint.flag();
                         }));
 
                         // verify task
                         retrieveTask(taskId).onComplete(testContext.succeeding(res -> {
-                            //Assertions.assertEquals("CREATED", res.getString("STATUS"), "task should not be checked-out");
+                            Assertions.assertEquals("CREATED", res.getString("STATUS"), "task should not be checked-out");
                             checkpoint.flag();
                         }));
-                    });
-                }));
+                    }));
+                })
+        );
     }
 
     @ParameterizedTest
     @DisplayName("Task processing error - changes should be rolled back, tasks should be updated to ERROR")
-    @CsvSource({"ERR_IN_TXN","ERR_BEFORE_TXN"})
+    @CsvSource({"ERR_IN_TXN", "ERR_BEFORE_TXN"})
     void testTaskProcessingError(String errLocation, Vertx vertx, VertxTestContext testContext) {
         Checkpoint checkpoint = testContext.checkpoint(2);
         Payment payment = new Payment("CREATED", OffsetDateTime.now());
-        pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, "Q1", "ref1", p)))
-                .onComplete(testContext.succeeding(taskId -> {
-                    // after 6 seconds
-                    vertx.setTimer(2000, id -> {
-                        // verify payment status
-                        retrievePayment(payment.getId()).onComplete(testContext.succeeding(p -> {
-                            Assertions.assertEquals("CREATED", p.getStatus(), "PAYMENT status should be rolled back / no change");
-                            checkpoint.flag();
-                        }));
 
-                        // verify task
-                        retrieveTask(taskId).onComplete(testContext.succeeding(row -> {
-                            Assertions.assertEquals("ERROR", row.getString("STATUS"), "task should be updated to ERROR");
-                            checkpoint.flag();
-                        }));
-                    });
-                }));
-
+        // prepare a task processor
         Function<Task<Payment>, Future<?>> taskProcessor = task -> {
             log.info("Processing {}", task.getPayload());
             if ("ERR_BEFORE_TXN".equals(errLocation)) {
@@ -230,16 +263,42 @@ class TaskQueueTest {
             return pool.withTransaction(updatePaymentFunc);
         };
 
+        // prepare a poller
+        String queueName = switch (errLocation) {
+            case "ERR_IN_TXN" -> "Q-ERR_IN_TXN";
+            case "ERR_BEFORE_TXN" -> "Q-ERR_BEFORE_TXN";
+            default -> null;
+        };
         PollConfig<Payment> pollConfig = PollConfig.<Payment>builder()
-                .queueName("Q1")
+                .queueName(queueName)
                 .batchSize(5)
                 .nextProcessDelay(Duration.ofMinutes(10))
                 .taskProcessor(taskProcessor)
                 .payloadClass(Payment.class)
-                .noTaskPollInterval(Duration.ofSeconds(1))
-                .hasTaskPollInterval(Duration.ofSeconds(1)).build();
+                .noTaskPollInterval(Duration.ofMillis(500)) // make sure it's smaller then the waiting time in verification
+                .build();
         TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();
+
+        // enqueue a task
+        Future<Long> enqueueTask = pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p)));
+
+        // verify after the poller processing the task
+        enqueueTask.onComplete(testContext.succeeding(taskId -> {
+            vertx.setTimer(1000, id -> { // make sure the poller has already processed the task
+                // verify payment status
+                retrievePayment(payment.getId()).onComplete(testContext.succeeding(p -> {
+                    Assertions.assertEquals("CREATED", p.getStatus(), "PAYMENT status should be rolled back / no change");
+                    checkpoint.flag();
+                }));
+
+                // verify task
+                retrieveTask(taskId).onComplete(testContext.succeeding(row -> {
+                    Assertions.assertEquals("ERROR", row.getString("STATUS"), "task should be updated to ERROR");
+                    checkpoint.flag();
+                }));
+            });
+        }));
     }
 
     private Future<Payment> savePayment(SqlConnection sqlConnection, Payment payment) {
@@ -263,6 +322,7 @@ class TaskQueueTest {
                 .execute()
                 .map(SqlResult::size);
     }
+
     private Future<Payment> retrievePayment(Long id) {
         return pool.query("SELECT * FROM PAYMENT WHERE ID = " + id)
                 .execute()

@@ -45,7 +45,7 @@ public class TaskPoller<T> {
                 log.debug("{} New task event received, timerId={} cancelled, start to process new tasks. taskId={}", pollerId, timerId, message.body());
                 fetchBatchAndProcess();
             } else {
-                log.debug("{} New task event received, ignored, because it's not no task and waiting for the timer. taskId={}", pollerId, message.body());
+                log.debug("{} New task event received, ignored, because it's not no task and waiting for the timer. taskId={}, isStopped={}", pollerId, message.body(), isStopped);
             }
         });
     }
@@ -167,7 +167,7 @@ public class TaskPoller<T> {
                 .map(res -> convertTask(taskEntity))
                 .compose(tTask -> config.getTaskProcessor().apply(tTask))
                 .recover(err -> {
-                    log.error("{} [taskId:{}] Error when try to process the task. Will mark it as ERROR.", pollerId, taskEntity.getId(), err);
+                    log.error("{} [taskId:{}] Error when try to process the task. Will try to update task status to ERROR.", pollerId, taskEntity.getId(), err);
                     // for recover to mark the task as ERROR, it needs to be in a separate connection
                     return pool.withConnection(conn -> taskQueueServiceDb.fail(conn, taskEntity.getId()).compose(count -> Future.succeededFuture()));
                 });

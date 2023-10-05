@@ -29,7 +29,7 @@ public class PaymentReleaseVerticle extends AbstractVerticle {
                 .nextProcessDelay(Duration.ofMinutes(10))
                 .taskProcessor(taskProcessor)
                 .payloadClass(Payment.class)
-                .noTaskPollInterval(Duration.ofSeconds(60))
+                .noTaskPollInterval(Duration.ofSeconds(10))
                 .build();
         poller = new TaskPoller<>(vertx, pool, pollConfig);
         poller.start();

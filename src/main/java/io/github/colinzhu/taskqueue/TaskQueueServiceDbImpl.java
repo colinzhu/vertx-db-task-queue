@@ -13,11 +13,11 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 
+import static io.github.colinzhu.taskqueue.TaskStatus.*;
+
 @Slf4j
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class TaskQueueServiceDbImpl implements TaskQueueService {
-    private static final String ENV_VAR_IS_DELETE_WHEN_FINISH = "TaskQueueService.isDeleteWhenFinish";
-    private final boolean isDeleteWhenFinish = Boolean.parseBoolean(System.getProperty(ENV_VAR_IS_DELETE_WHEN_FINISH, Boolean.TRUE.toString()));
     private final Vertx vertx;
     private final TaskEntityRepo taskEntityRepo;
 
@@ -52,19 +52,24 @@ class TaskQueueServiceDbImpl implements TaskQueueService {
 
     @Override
     public Future<Integer> complete(SqlConnection sqlConnection, long taskId) {
-        if (isDeleteWhenFinish) {
-            return taskEntityRepo.finish(sqlConnection, taskId);
-        } else {
-            return taskEntityRepo.updateStatus(sqlConnection, taskId, "COMPLETED");
-        }
+        return taskEntityRepo.updateStatusFrom(sqlConnection, taskId, PROCESSING, COMPLETED);
+    }
+
+    @Override
+    public Future<Integer> completeDelete(SqlConnection sqlConnection, long taskId) {
+        return taskEntityRepo.completeDelete(sqlConnection, taskId);
     }
 
     @Override
     public Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay) {
         return taskEntityRepo.reenqueue(sqlConnection, taskId, delay);
+        // not sending new task notification to poller, the task will wait for some time before being processed, max noTaskInterval
+        // because:
+        // 1. usually reenqueue should have a delay
+        // 2. there is no direct queue name to send notification
     }
 
     public Future<Integer> fail(SqlConnection sqlConnection, long taskId) {
-        return taskEntityRepo.updateStatusToError(sqlConnection, taskId);
+        return taskEntityRepo.updateStatusFrom(sqlConnection, taskId, PROCESSING, ERROR);
     }
 }

@@ -118,7 +118,11 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] when enqueue a task, notify poller by sending an event to event bus, if it's waiting for timer, it can cancel the timer and process immediately
 - [x] Update TaskQueueService to non-singleton, because vertx is now parameter to create TaskQueueService
 - [x] rename "finish" to "complete" // 2023-10-04
-- [ ] consider to split "complete" into "complete" and "delete"
+- [x] consider to split "complete" into "complete" and "completeDelete" // 2023-10-05
+- [x] remove system property "TaskQueueService.isDeleteWhenFinish", because now support "complete" and "completeDelete" // 2023-10-05
+- [x] change updateStatus to updateStatusFrom // 2023-10-05
+- [x] create TaskStatus enum // 2023-10-05
+- [x] update junit to make it more clear and reliable // 2023-10-05
 - [ ] consider to change task ID from long to UUID
 - [ ] consider to store process result into DB
 - [ ] consider to move TaskSupportVerticle from test to main

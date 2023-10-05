@@ -10,6 +10,9 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Set;
 
+import static io.github.colinzhu.taskqueue.TaskStatus.ERROR;
+import static io.github.colinzhu.taskqueue.TaskStatus.POISON;
+
 @Slf4j
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class TaskQueueSupportServiceImpl implements TaskQueueSupportService {
@@ -23,16 +26,20 @@ class TaskQueueSupportServiceImpl implements TaskQueueSupportService {
     @Override
     public Future<Integer> reenqueueFromError(SqlConnection sqlConnection, Set<Long> taskIds) {
         return supportRepo.reenqueueFromError(sqlConnection, taskIds);
+        // not sending new task notification to poller, the task will wait for some time before being processed, max noTaskInterval
+        // because:
+        // 1. there is no direct queue name to send notification
+        // 2. don't get the queue name by id, because the taskIds may belong to different queues
     }
 
     @Override
     public Future<Integer> markPoison(SqlConnection sqlConnection, Set<Long> taskIds) {
-        return supportRepo.updateStatusFromToBatch(sqlConnection, taskIds, "ERROR", "POISON");
+        return supportRepo.updateStatusFromToBatch(sqlConnection, taskIds, ERROR, POISON);
     }
 
     @Override
     public Future<Integer> poisonToError(SqlConnection sqlConnection, Set<Long> taskIds) {
-        return supportRepo.updateStatusFromToBatch(sqlConnection, taskIds, "POISON", "ERROR");
+        return supportRepo.updateStatusFromToBatch(sqlConnection, taskIds, POISON, ERROR);
     }
 
     @Override
@@ -42,7 +49,7 @@ class TaskQueueSupportServiceImpl implements TaskQueueSupportService {
 
     @Override
     public Future<List<?>> searchByQueueNameAndStatus(SqlConnection sqlConnection, String queueName, String status, int batchSize) {
-        return supportRepo.searchByQueueNameAndStatus(sqlConnection, queueName, status, batchSize).compose(Future::succeededFuture);
+        return supportRepo.searchByQueueNameAndStatus(sqlConnection, queueName, TaskStatus.valueOf(status), batchSize).compose(Future::succeededFuture);
     }
 
     @Override

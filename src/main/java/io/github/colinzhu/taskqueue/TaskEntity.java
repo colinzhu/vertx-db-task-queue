@@ -11,7 +11,7 @@ class TaskEntity implements Serializable {
     long id;
     String referenceNumber;
     String queueName;
-    String status;
+    TaskStatus status;
     long attempt;
     OffsetDateTime createTime;
     OffsetDateTime nextProcessTime;

@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static io.github.colinzhu.taskqueue.TaskStatus.CREATED;
+
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 class TaskEntityRepo {
@@ -26,28 +28,20 @@ class TaskEntityRepo {
         return instance;
     }
 
-    private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, ATTEMPT, PAYLOAD, REFERENCE_NUMBER, CREATE_TIME, NEXT_PROCESS_TIME, LAST_UPDATE_TIME) VALUES (#{queueName}, #{status}, #{attempt}, #{payload}, #{refNumber}, #{createTime}, #{nextProcessTime}, #{lastUpdateTime})";
-    private static final String SQL_FINISH = "DELETE TASKS WHERE ID = #{id} AND STATUS = 'PROCESSING'"; // only delete status in PROCESSING, in case updated by other already
-    private static final String SQL_UPDATE_STATUS = "UPDATE TASKS SET STATUS = #{newStatus}, LAST_UPDATE_TIME = #{now} WHERE ID = #{id}";
+    private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, ATTEMPT, PAYLOAD, REFERENCE_NUMBER, CREATE_TIME, NEXT_PROCESS_TIME, LAST_UPDATE_TIME) VALUES (#{queueName}, 'CREATED', 0, #{payload}, #{refNumber}, #{createTime}, #{nextProcessTime}, #{lastUpdateTime})";
+    private static final String SQL_FINISH_DELETE = "DELETE TASKS WHERE ID = #{id} AND STATUS = 'PROCESSING'"; // only delete status in PROCESSING, in case updated by other already
+    private static final String SQL_UPDATE_STATUS_FROM = "UPDATE TASKS SET STATUS = #{newStatus}, LAST_UPDATE_TIME = #{now} WHERE ID = #{id} and STATUS = #{oriStatus}";
     private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE ID IN (SELECT ID FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY) AND STATUS IN ('CREATED','PROCESSING') AND NEXT_PROCESS_TIME <= #{now} FOR UPDATE SKIP LOCKED";
-//    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} AND ROWNUM <= #{batchSize} FOR UPDATE SKIP LOCKED";
-//    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME, ID FETCH FIRST #{batchSize} ROWS ONLY FOR UPDATE SKIP LOCKED";
     private static final String SQL_CHECK_OUT = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE ID IN ({idList})";
     private static final String SQL_RE_ENQUEUE = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE ID = #{id} AND STATUS = 'PROCESSING'";
 
     Future<TaskEntity> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
-        return insert(sqlConnection, queueName, refNumber, payload, processDelay, "CREATED", 0L);
-    }
-
-    Future<TaskEntity> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay, String status, long attempt) {
         long start = System.currentTimeMillis();
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime nextProcessTime = now.plus(processDelay);
         return SqlTemplate.forUpdate(sqlConnection, SQL_INSERT)
                 .execute(Map.of(
                         "queueName", queueName,
-                        "status", status,
-                        "attempt", attempt,
                         "payload", payload,
                         "refNumber", refNumber,
                         "createTime", now,
@@ -57,8 +51,8 @@ class TaskEntityRepo {
                         sqlResult.property(JDBCPool.GENERATED_KEYS).getLong(0),
                         refNumber,
                         queueName,
-                        status,
-                        attempt,
+                        CREATED,
+                        0L,
                         now,
                         nextProcessTime,
                         now,
@@ -68,9 +62,9 @@ class TaskEntityRepo {
                 .onFailure(err -> log.info("task insert failed: queue={}, refNumber={}, time={}ms", queueName, refNumber, System.currentTimeMillis() - start, err));
     }
 
-    Future<Integer> finish(SqlConnection sqlConnection, long taskId) {
+    Future<Integer> completeDelete(SqlConnection sqlConnection, long taskId) {
         long start = System.currentTimeMillis();
-        return SqlTemplate.forUpdate(sqlConnection, SQL_FINISH)
+        return SqlTemplate.forUpdate(sqlConnection, SQL_FINISH_DELETE)
                 .execute(Map.of("id", taskId))
                 .map(SqlResult::rowCount)
                 .map(deleteCount -> {
@@ -83,14 +77,10 @@ class TaskEntityRepo {
                 .onSuccess(sqlResult -> log.info("task deleted: taskId={}, time={}ms", taskId, System.currentTimeMillis() - start));
     }
 
-    Future<Integer> updateStatusToError(SqlConnection sqlConnection, long taskId) {
-        return updateStatus(sqlConnection, taskId, "ERROR");
-    }
-
-    Future<Integer> updateStatus(SqlConnection sqlConnection, long taskId, String newStatus) {
+    Future<Integer> updateStatusFrom(SqlConnection sqlConnection, long taskId, TaskStatus oriStatus, TaskStatus newStatus) {
         long start = System.currentTimeMillis();
-        return SqlTemplate.forUpdate(sqlConnection, SQL_UPDATE_STATUS)
-                .execute(Map.of("id", taskId, "newStatus", newStatus, "now", OffsetDateTime.now()))
+        return SqlTemplate.forUpdate(sqlConnection, SQL_UPDATE_STATUS_FROM)
+                .execute(Map.of("id", taskId, "oriStatus", oriStatus.name(), "newStatus", newStatus.name(), "now", OffsetDateTime.now()))
                 .map(SqlResult::rowCount)
                 .map(updateCount -> {
                     if (0 == updateCount) {
@@ -176,7 +166,7 @@ class TaskEntityRepo {
                 .id(row.getLong("ID"))
                 .referenceNumber(row.getString("REFERENCE_NUMBER"))
                 .queueName(row.getString("QUEUE_NAME"))
-                .status(row.getString("STATUS"))
+                .status(TaskStatus.valueOf(row.getString("STATUS")))
                 .attempt(row.getLong("ATTEMPT"))
                 .createTime(row.getOffsetDateTime("CREATE_TIME"))
                 .nextProcessTime(row.getOffsetDateTime("NEXT_PROCESS_TIME"))

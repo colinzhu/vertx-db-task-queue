@@ -44,14 +44,14 @@ class TaskQueueSupportRepo {
                 .onFailure(err -> log.error("task(s) reenqueueErrorTasks failed: taskIds={}, time:{}ms", taskIds, System.currentTimeMillis() - start, err));
     }
 
-    Future<Integer> updateStatusFromToBatch(SqlConnection sqlConnection, Set<Long> taskIds, String fromStatus, String toStatus) {
+    Future<Integer> updateStatusFromToBatch(SqlConnection sqlConnection, Set<Long> taskIds, TaskStatus fromStatus, TaskStatus toStatus) {
         long start = System.currentTimeMillis();
         String idValues = taskIds.stream().map(Object::toString).collect(Collectors.joining(","));
         String sql = SQL_UPDATE_STATUS_BATCH.replace("{idList}", idValues);
         return SqlTemplate.forUpdate(sqlConnection, sql)
-                .execute(Map.of("fromStatus", fromStatus, "toStatus", toStatus))
+                .execute(Map.of("fromStatus", fromStatus.name(), "toStatus", toStatus.name()))
                 .map(SqlResult::rowCount)
-                .onSuccess(sqlResult -> log.info("task updateStatusFromToBatch completed: taskId={}, fromStatus={}, toStatus={}, time={}ms", taskIds, fromStatus, toStatus, System.currentTimeMillis() - start))
+                .onSuccess(sqlResult -> log.info("task updateStatusFromToBatch completed: taskId={}, fromStatus={}, toStatus={}, time={}ms", taskIds, fromStatus.name(), toStatus.name(), System.currentTimeMillis() - start))
                 .onFailure(err -> log.error("task(s) updateStatusFromToBatch failed: taskIds={}, time:{}ms", taskIds, System.currentTimeMillis() - start, err));
     }
 
@@ -67,19 +67,19 @@ class TaskQueueSupportRepo {
     }
 
     // for support only
-    Future<List<TaskEntity>> searchByQueueNameAndStatus(SqlConnection sqlConnection, String queueName, String status, int batchSize) {
+    Future<List<TaskEntity>> searchByQueueNameAndStatus(SqlConnection sqlConnection, String queueName, TaskStatus status, int batchSize) {
         long start = System.currentTimeMillis();
         return SqlTemplate.forQuery(sqlConnection, SQL_SEARCH_QNAME_STATUS)
-                .execute(Map.of("queueName", queueName, "status", status, "batchSize", batchSize))
+                .execute(Map.of("queueName", queueName, "status", status.name(), "batchSize", batchSize))
                 .map(rows -> {
                     List<TaskEntity> records = new ArrayList<>();
                     rows.forEach(row -> records.add(mapRowToTaskEntity(row)));
                     if (rows.size() > 0) {
-                        log.info("task searchByQueueNameAndStatus completed: queue={}, status={}, count={}, time={}ms", queueName, status, records.size(), System.currentTimeMillis() - start);
+                        log.info("task searchByQueueNameAndStatus completed: queue={}, status={}, count={}, time={}ms", queueName, status.name(), records.size(), System.currentTimeMillis() - start);
                     }
                     return records;
                 })
-                .onFailure(err -> log.error("task searchByQueueNameAndStatus failed: queue={}, status={}, time={}ms", queueName, status, System.currentTimeMillis() - start, err));
+                .onFailure(err -> log.error("task searchByQueueNameAndStatus failed: queue={}, status={}, time={}ms", queueName, status.name(), System.currentTimeMillis() - start, err));
     }
 
     Future<List<JsonObject>> countGroupByQueueNameAndStatus(SqlConnection sqlConnection) {
@@ -110,7 +110,7 @@ class TaskQueueSupportRepo {
                 .id(row.getLong("ID"))
                 .referenceNumber(row.getString("REFERENCE_NUMBER"))
                 .queueName(row.getString("QUEUE_NAME"))
-                .status(row.getString("STATUS"))
+                .status(TaskStatus.valueOf(row.getString("STATUS")))
                 .attempt(row.getLong("ATTEMPT"))
                 .createTime(row.getOffsetDateTime("CREATE_TIME"))
                 .nextProcessTime(row.getOffsetDateTime("NEXT_PROCESS_TIME"))
