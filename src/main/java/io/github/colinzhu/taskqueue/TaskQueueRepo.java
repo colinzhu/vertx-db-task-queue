@@ -21,10 +21,10 @@ import static io.github.colinzhu.taskqueue.TaskStatus.CREATED;
 
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-class TaskEntityRepo {
-    private static final TaskEntityRepo instance = new TaskEntityRepo();
+class TaskQueueRepo {
+    private static final TaskQueueRepo instance = new TaskQueueRepo();
 
-    static TaskEntityRepo getInstance() {
+    static TaskQueueRepo getInstance() {
         return instance;
     }
 

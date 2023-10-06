@@ -17,9 +17,9 @@ public class TaskPollerConfig<T> {
 
     private int batchSize = 20;
     private Duration deadline = Duration.ofMinutes(15); // for auto recovery, after the deadline, if the task is still valid (CREATED / PROCESSING), it will be checked out and processed again
-    private Duration noTaskPollInterval = Duration.ofSeconds(5);
+    private Duration noTaskPollInterval = Duration.ofSeconds(10);
     private Duration hasTaskPollInterval = Duration.ZERO;
-    private Duration errorProcessTasksInterval = Duration.ofSeconds(5);
+    private Duration errorProcessTasksInterval = Duration.ofSeconds(10);
     private Duration errorCheckOutInterval = Duration.ofSeconds(60);
     private boolean pollNextBatch = true;
 }

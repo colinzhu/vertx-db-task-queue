@@ -24,7 +24,7 @@ public class TaskPoller<T> {
     private final JDBCPool pool;
     @Getter
     private final TaskPollerConfig<T> config;
-    private final TaskEntityRepo taskEntityRepo;
+    private final TaskQueueRepo taskQueueRepo;
     private final TaskQueueServiceImpl taskQueueServiceImpl;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
@@ -34,7 +34,7 @@ public class TaskPoller<T> {
     private long timerId = -1;
     private boolean isNoTaskWaitingForTimer = false;
     public TaskPoller(Vertx vertx, JDBCPool pool, TaskPollerConfig<T> config) {
-        this(vertx, pool, config, TaskEntityRepo.getInstance(), new TaskQueueServiceImpl(vertx, TaskEntityRepo.getInstance()));
+        this(vertx, pool, config, TaskQueueRepo.getInstance(), new TaskQueueServiceImpl(vertx, TaskQueueRepo.getInstance()));
         pollerId = "poller-" + config.getQueueName() + "-" + Integer.toHexString(this.hashCode());
         log.info("{} created: {}", pollerId, config);
 
@@ -105,7 +105,7 @@ public class TaskPoller<T> {
     }
 
     private Future<List<TaskEntity>> checkOutTasks(SqlConnection sqlConnection) {
-        return taskEntityRepo.checkout(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getDeadline());
+        return taskQueueRepo.checkout(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getDeadline());
     }
 
     private void handleFetchedTasks(List<TaskEntity> batch, String pollId, long start) {

@@ -19,7 +19,7 @@ import static io.github.colinzhu.taskqueue.TaskStatus.*;
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class TaskQueueServiceImpl implements TaskQueueService {
     private final Vertx vertx;
-    private final TaskEntityRepo taskEntityRepo;
+    private final TaskQueueRepo taskQueueRepo;
 
     /**
      * disable SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, so the date time format will be:
@@ -40,7 +40,7 @@ class TaskQueueServiceImpl implements TaskQueueService {
         } catch (JsonProcessingException e) {
             return Future.failedFuture(e);
         }
-        return taskEntityRepo.insert(sqlConnection, queueName, refNumber, payloadStr, processDelay)
+        return taskQueueRepo.insert(sqlConnection, queueName, refNumber, payloadStr, processDelay)
                 .map(task -> {
                     if (Duration.ZERO.equals(processDelay)) {
                         vertx.eventBus().send("poller." + queueName, task.getId());
@@ -52,17 +52,17 @@ class TaskQueueServiceImpl implements TaskQueueService {
 
     @Override
     public Future<Integer> complete(SqlConnection sqlConnection, long taskId) {
-        return taskEntityRepo.updateStatusFrom(sqlConnection, taskId, PROCESSING, COMPLETED);
+        return taskQueueRepo.updateStatusFrom(sqlConnection, taskId, PROCESSING, COMPLETED);
     }
 
     @Override
     public Future<Integer> completeDelete(SqlConnection sqlConnection, long taskId) {
-        return taskEntityRepo.completeDelete(sqlConnection, taskId);
+        return taskQueueRepo.completeDelete(sqlConnection, taskId);
     }
 
     @Override
     public Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay) {
-        return taskEntityRepo.reenqueue(sqlConnection, taskId, delay);
+        return taskQueueRepo.reenqueue(sqlConnection, taskId, delay);
         // not sending new task notification to poller, the task will wait for some time before being processed, max noTaskInterval
         // because:
         // 1. usually reenqueue should have a delay
@@ -70,6 +70,6 @@ class TaskQueueServiceImpl implements TaskQueueService {
     }
 
     public Future<Integer> fail(SqlConnection sqlConnection, long taskId) {
-        return taskEntityRepo.updateStatusFrom(sqlConnection, taskId, PROCESSING, ERROR);
+        return taskQueueRepo.updateStatusFrom(sqlConnection, taskId, PROCESSING, ERROR);
     }
 }
