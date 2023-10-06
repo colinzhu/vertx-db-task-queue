@@ -139,18 +139,18 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] when enqueue a task, notify poller by sending an event to event bus, if it's waiting for timer, it can cancel the timer and process immediately
 - [x] Update TaskQueueService to non-singleton, because vertx is now parameter to create TaskQueueService
 - [x] rename "finish" to "complete" // 2023-10-04
-- [x] consider to split "complete" into "complete" and "completeDelete" // 2023-10-05
-- [x] remove system property "TaskQueueService.isDeleteWhenFinish", because now support "complete" and "completeDelete" // 2023-10-05
-- [x] change updateStatus to updateStatusFrom // 2023-10-05
-- [x] create TaskStatus enum // 2023-10-05
-- [x] update junit to make it more clear and reliable // 2023-10-05
+- [x] 2023-10-05 consider to split "complete" into "complete" and "completeDelete"
+- [x] 2023-10-05 remove system property "TaskQueueService.isDeleteWhenFinish", because now support "complete" and "completeDelete"
+- [x] 2023-10-05 change updateStatus to updateStatusFrom
+- [x] 2023-10-05 create TaskStatus enum
+- [x] 2023-10-05 update junit to make it more clear and reliable
+- [x] 2023-10-05 consider to move TaskSupportVerticle from test to main, create TaskQueueSupportHandler
+- [x] 2023-10-05 get bootstrap and tabulator from webjar by maven build
+- [x] 2023-10-05 rename PollConfig to TaskPollerConfig
+- [x] 2023-10-06 make TaskPollerConfig mutable, so that there is a flexibility to change the config during runtime // 2023-10-06
+- [x] 2023-10-06 rename TaskPollerConfig.nextProcessDelay to deadline 
+- [x] 2023-10-06 rename TaskEntityRepo to TaskQueueRepo
 - [ ] consider to change task ID from long to UUID
 - [ ] consider to store process result into DB
-- [x] consider to move TaskSupportVerticle from test to main, create TaskQueueSupportHandler // 2023-10-05
-- [x] get bootstrap and tabulator from webjar by maven build // 2023-10-05
-- [ ] upload to maven central
-- [x] rename PollConfig to TaskPollerConfig // 2023-10-05
-- [x] make TaskPollerConfig mutable, so that there is a flexibility to change the config during runtime
-- [x] rename TaskPollerConfig.nextProcessDelay to deadline 
-- [x] rename TaskEntityRepo to TaskQueueRepo
 - [ ] support other store e.g. redis
+- [ ] upload to maven central

@@ -107,7 +107,7 @@ class TaskQueueRepo {
                 .onFailure(err -> log.error("task checkoutSelect failed: queue={}, time={}ms", queueName, System.currentTimeMillis() - start, err))
                 .map(rows -> {
                     List<TaskEntity> records = new ArrayList<>();
-                    rows.forEach(row -> records.add(mapRowToTaskEntity(row)));
+                    rows.forEach(row -> records.add(mapRowToTaskEntityForCheckout(row)));
                     if (rows.size() > 0) {
                         log.debug("task checkoutSelect: queue={}, count={}, taskList={}, time={}ms", queueName, records.size(), records, System.currentTimeMillis() - start);
                     }
@@ -161,13 +161,13 @@ class TaskQueueRepo {
                 .onSuccess(sqlResult -> log.info("task reenqueued: taskId={}, nextProcessTime={}, time={}ms", taskId, newNextProcessTime, System.currentTimeMillis() - start));
     }
 
-    private static TaskEntity mapRowToTaskEntity(Row row) {
+    private static TaskEntity mapRowToTaskEntityForCheckout(Row row) {
         return TaskEntity.builder()
                 .id(row.getLong("ID"))
                 .referenceNumber(row.getString("REFERENCE_NUMBER"))
                 .queueName(row.getString("QUEUE_NAME"))
                 .status(TaskStatus.valueOf(row.getString("STATUS")))
-                .attempt(row.getLong("ATTEMPT"))
+                .attempt(row.getLong("ATTEMPT") + 1L) // increase by 1, as it will be increased in the next step
                 .createTime(row.getOffsetDateTime("CREATE_TIME"))
                 .nextProcessTime(row.getOffsetDateTime("NEXT_PROCESS_TIME"))
                 .lastUpdateTime(row.getOffsetDateTime("LAST_UPDATE_TIME"))
