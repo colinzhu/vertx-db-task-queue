@@ -1,16 +1,14 @@
 package io.github.colinzhu.taskqueue.example.release;
 
 import io.github.colinzhu.taskqueue.H2Database;
-import io.github.colinzhu.taskqueue.TaskPollerConfig;
 import io.github.colinzhu.taskqueue.TaskPoller;
+import io.github.colinzhu.taskqueue.TaskPollerConfig;
 import io.github.colinzhu.taskqueue.TaskQueueService;
 import io.github.colinzhu.taskqueue.example.Payment;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.jdbcclient.JDBCPool;
 import lombok.extern.slf4j.Slf4j;
-
-import java.time.Duration;
 
 @Slf4j
 public class PaymentReleaseVerticle extends AbstractVerticle {
@@ -23,14 +21,7 @@ public class PaymentReleaseVerticle extends AbstractVerticle {
         PaymentReleaseTaskProcessor taskProcessor = new PaymentReleaseTaskProcessor(vertx, pool, TaskQueueService.taskQueue(vertx));
 
         // register taskProcessor to poller
-        TaskPollerConfig<Payment> taskPollerConfig = TaskPollerConfig.<Payment>builder()
-                .queueName("payment.release")
-                .batchSize(20)
-                .nextProcessDelay(Duration.ofMinutes(10))
-                .taskProcessor(taskProcessor)
-                .payloadClass(Payment.class)
-                .noTaskPollInterval(Duration.ofSeconds(10))
-                .build();
+        TaskPollerConfig<Payment> taskPollerConfig = new TaskPollerConfig<>("payment.release", taskProcessor, Payment.class);
         poller = new TaskPoller<>(vertx, pool, taskPollerConfig);
         poller.start();
 

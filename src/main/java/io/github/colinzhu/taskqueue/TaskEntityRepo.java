@@ -92,10 +92,10 @@ class TaskEntityRepo {
                 .onSuccess(sqlResult -> log.info("task status updated to '{}': taskId={}, time={}ms", newStatus, taskId, System.currentTimeMillis() - start));
     }
 
-    Future<List<TaskEntity>> checkout(SqlConnection sqlConnection, String queueName, int batchSize, Duration nextProcessDelay) {
+    Future<List<TaskEntity>> checkout(SqlConnection sqlConnection, String queueName, int batchSize, Duration deadline) {
         var taskList = checkoutSelect(sqlConnection, queueName, batchSize);
         return taskList
-                .compose(records -> checkoutUpdate(sqlConnection, records.stream().map(TaskEntity::getId).collect(Collectors.toList()), nextProcessDelay))
+                .compose(records -> checkoutUpdate(sqlConnection, records.stream().map(TaskEntity::getId).collect(Collectors.toList()), deadline))
                 .map(records -> taskList.result())
                 .onFailure(err -> log.error("task checkout failed: queue={}", queueName, err));
     }
@@ -115,7 +115,7 @@ class TaskEntityRepo {
                 });
     }
 
-    private Future<Integer> checkoutUpdate(SqlConnection sqlConnection, List<Long> taskIdList, Duration nextProcessDelay) {
+    private Future<Integer> checkoutUpdate(SqlConnection sqlConnection, List<Long> taskIdList, Duration deadline) {
         long start = System.currentTimeMillis();
         Future<Integer> future;
         if (taskIdList.isEmpty()) {
@@ -123,7 +123,7 @@ class TaskEntityRepo {
         } else {
             String idValues = taskIdList.stream().map(String::valueOf).collect(Collectors.joining(","));
             String sql = SQL_CHECK_OUT.replace("{idList}", idValues);
-            OffsetDateTime newNextProcessTime = OffsetDateTime.now().plusSeconds(nextProcessDelay.getSeconds());
+            OffsetDateTime newNextProcessTime = OffsetDateTime.now().plusSeconds(deadline.getSeconds());
             future = SqlTemplate.forUpdate(sqlConnection, sql)
                     .execute(Map.of("now", OffsetDateTime.now(), "newNextProcessTime", newNextProcessTime))
                     .map(SqlResult::rowCount)

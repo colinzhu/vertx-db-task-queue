@@ -9,6 +9,7 @@ import io.vertx.core.Vertx;
 import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.SqlConnection;
 import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -21,6 +22,7 @@ import java.util.stream.Collectors;
 public class TaskPoller<T> {
     private final Vertx vertx;
     private final JDBCPool pool;
+    @Getter
     private final TaskPollerConfig<T> config;
     private final TaskEntityRepo taskEntityRepo;
     private final TaskQueueServiceImpl taskQueueServiceImpl;
@@ -41,7 +43,6 @@ public class TaskPoller<T> {
             // If waiting for a timer, cancel it and fetch tasks immediately
             if (isNoTaskWaitingForTimer) {
                 vertx.cancelTimer(timerId);
-                //waitingForTimer = false;
                 log.debug("{} New task event received, timerId={} cancelled, start to process new tasks. taskId={}", pollerId, timerId, message.body());
                 fetchBatchAndProcess();
             } else {
@@ -104,7 +105,7 @@ public class TaskPoller<T> {
     }
 
     private Future<List<TaskEntity>> checkOutTasks(SqlConnection sqlConnection) {
-        return taskEntityRepo.checkout(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay());
+        return taskEntityRepo.checkout(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getDeadline());
     }
 
     private void handleFetchedTasks(List<TaskEntity> batch, String pollId, long start) {

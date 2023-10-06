@@ -150,3 +150,5 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] get bootstrap and tabulator from webjar by maven build // 2023-10-05
 - [ ] upload to maven central
 - [x] rename PollConfig to TaskPollerConfig // 2023-10-05
+- [x] make TaskPollerConfig mutable, so that there is a flexibility to change the config during runtime
+- [x] rename TaskPollerConfig.nextProcessDelay to deadline 
