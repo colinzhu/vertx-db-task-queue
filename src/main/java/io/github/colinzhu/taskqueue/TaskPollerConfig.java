@@ -1,18 +1,16 @@
 package io.github.colinzhu.taskqueue;
 
-import io.vertx.core.Future;
-import lombok.*;
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
 import lombok.experimental.Accessors;
 
 import java.time.Duration;
-import java.util.function.Function;
 
 @RequiredArgsConstructor
 @Data
 @Accessors(chain = true)
 public class TaskPollerConfig<T> {
     private final String queueName;
-    private final Function<Task<T>, Future<?>> taskProcessor;
     private final Class<T> payloadClass;
 
     private int batchSize = 20;

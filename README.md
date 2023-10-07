@@ -150,6 +150,8 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] 2023-10-06 make TaskPollerConfig mutable, so that there is a flexibility to change the config during runtime // 2023-10-06
 - [x] 2023-10-06 rename TaskPollerConfig.nextProcessDelay to deadline 
 - [x] 2023-10-06 rename TaskEntityRepo to TaskQueueRepo
+- [x] 2023-10-07 create a common TaskPollerVerticle
+- [x] 2023-10-07 TaskPollerVerticle invokes TaskProcessorVerticle through event bus (request and response)
 - [ ] consider to change task ID from long to UUID
 - [ ] consider to store process result into DB
 - [ ] support other store e.g. redis

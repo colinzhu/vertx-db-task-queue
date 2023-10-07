@@ -2,10 +2,9 @@ package io.github.colinzhu.taskqueue.example;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
-import io.github.colinzhu.taskqueue.H2Database;
+import io.github.colinzhu.taskqueue.*;
 import io.github.colinzhu.taskqueue.example.check.PaymentCheckTaskProcessor;
-import io.github.colinzhu.taskqueue.example.check.PaymentCheckVerticle;
-import io.github.colinzhu.taskqueue.example.release.PaymentReleaseVerticle;
+import io.github.colinzhu.taskqueue.example.release.PaymentReleaseTaskProcessor;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Vertx;
 import io.vertx.jdbcclient.JDBCPool;
@@ -24,24 +23,37 @@ public class ExampleApp {
     public static void main(String[] args) {
         setLogLevel(ROOT_LOGGER_NAME, Level.INFO);
         setLogLevel("com.mchange.v2.resourcepool.BasicResourcePool", Level.DEBUG);
-        setLogLevel("io.github.colinzhu.taskqueue", Level.INFO);
+        setLogLevel("io.github.colinzhu.taskqueue", Level.DEBUG);
         setLogLevel("io.github.colinzhu.taskqueue.TaskPoller", Level.DEBUG);
-        setLogLevel("io.github.colinzhu.taskqueue.TaskEntityRepo", Level.DEBUG);
-        setLogLevel(PaymentCheckTaskProcessor.class.getName(), Level.INFO);
+        setLogLevel("io.github.colinzhu.taskqueue.TaskQueueRepo", Level.DEBUG);
 
         Vertx vertx = Vertx.vertx();
         H2Database.createH2Server();
 
         JDBCPool pool = H2Database.getJdbcPool(vertx, false);
         H2Database.createTables(pool)
-                .onSuccess(tablesCreated -> {
-                    vertx.deployVerticle(PaymentCheckVerticle.class, new DeploymentOptions().setInstances(2))
-                            .compose(any -> vertx.deployVerticle(PaymentReleaseVerticle.class, new DeploymentOptions().setInstances(2)))
-                            .compose(any -> vertx.deployVerticle(WebVerticle.class, new DeploymentOptions().setInstances(2)))
-                            .onFailure(err -> log.error("error", err));
-                })
+                .onSuccess(tablesCreated -> deployVerticles(vertx))
                 .onFailure(err -> log.error("Unable to create tables", err));
 
+        appendShutdownHook(vertx);
+    }
+
+    private static void deployVerticles(Vertx vertx) {
+        JDBCPool pool = H2Database.getJdbcPool(vertx, false);
+        TaskPollerConfig<Payment> taskPollerCheckConfig = new TaskPollerConfig<>("payment.check", Payment.class);
+        TaskPollerConfig<Payment> taskPollerReleaseConfig = new TaskPollerConfig<>("payment.release", Payment.class);
+        PaymentCheckTaskProcessor paymentCheckTaskProcessor = new PaymentCheckTaskProcessor(vertx, pool, TaskQueueService.taskQueue(vertx));
+        PaymentReleaseTaskProcessor paymentReleaseTaskProcessor = new PaymentReleaseTaskProcessor(vertx, pool, TaskQueueService.taskQueue(vertx));
+
+        vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerCheckConfig.getQueueName(), paymentCheckTaskProcessor), new DeploymentOptions().setInstances(3))
+                .compose(any -> vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerReleaseConfig.getQueueName(), paymentReleaseTaskProcessor), new DeploymentOptions().setInstances(3)))
+                .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerCheckConfig), new DeploymentOptions().setInstances(1)))
+                .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerReleaseConfig), new DeploymentOptions().setInstances(1)))
+                .compose(any -> vertx.deployVerticle(WebVerticle.class, new DeploymentOptions().setInstances(2)))
+                .onFailure(err -> log.error("error", err));
+    }
+
+    private static void appendShutdownHook(Vertx vertx) {
         Runtime.getRuntime().addShutdownHook(
                 new Thread(() -> {
                     final AtomicBoolean stopCompleted = new AtomicBoolean(false);

@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-public class TaskPoller<T> {
+class TaskPoller<T> {
     private final Vertx vertx;
     private final JDBCPool pool;
     @Getter
@@ -43,10 +43,10 @@ public class TaskPoller<T> {
             // If waiting for a timer, cancel it and fetch tasks immediately
             if (isNoTaskWaitingForTimer) {
                 vertx.cancelTimer(timerId);
-                log.debug("{} New task event received, timerId={} cancelled, start to process new tasks. taskId={}", pollerId, timerId, message.body());
+                log.debug("{} new task notification received, taskId={}, timerId={} cancelled, start to fetch tasks. ", pollerId, message.body(), timerId);
                 fetchBatchAndProcess();
             } else {
-                log.debug("{} New task event received, ignored, because it's not no task and waiting for the timer. taskId={}, isStopped={}", pollerId, message.body(), isStopped);
+                log.debug("{} new task notification received, ignored, taskId={}, because it's not no task and waiting for the timer, isStopped={}", pollerId, message.body(), isStopped);
             }
         });
     }
@@ -93,13 +93,13 @@ public class TaskPoller<T> {
         pool.withTransaction(this::checkOutTasks)
                 .onSuccess(batch -> {
                     if (batch.isEmpty()) {
-                        log.debug("{} size:0. Time:{}ms. Fetch again in {}", pollId, System.currentTimeMillis() - start, config.getNoTaskPollInterval());
+                        log.debug("{} tasks fetched, size=0. Time:{}ms. Fetch again in {}", pollId, System.currentTimeMillis() - start, config.getNoTaskPollInterval());
                         rerunWithDelayIfNecessary(config.getNoTaskPollInterval(), true);
                     } else {
                         handleFetchedTasks(batch, pollId, start);
                     }
                 }).onFailure(e -> {
-                    log.error("{} Failed to check out batch of tasks, retry in {}", pollId, config.getErrorCheckOutInterval(), e);
+                    log.error("{} failed to fetch tasks, retry in {}", pollId, config.getErrorCheckOutInterval(), e);
                     rerunWithDelayIfNecessary(config.getErrorCheckOutInterval());
                 });
     }
@@ -111,17 +111,17 @@ public class TaskPoller<T> {
     private void handleFetchedTasks(List<TaskEntity> batch, String pollId, long start) {
         List<Long> taskIdList = batch.stream().map(TaskEntity::getId).collect(Collectors.toList());
         List<String> refNumberList = batch.stream().map(TaskEntity::getReferenceNumber).collect(Collectors.toList());
-        String logTmpl = "%s size:%d, taskIdList:%s, refList:%s".formatted(pollId, batch.size(), taskIdList, refNumberList);
-        log.debug("{} fetched. Time:{}ms", logTmpl, System.currentTimeMillis() - start);
+        String logTasks = "size=%d, taskIdList=%s, refList=%s".formatted(batch.size(), taskIdList, refNumberList);
+        log.debug("{} tasks fetched, {} Time:{}ms", pollId, logTasks, System.currentTimeMillis() - start);
         long processStart = System.currentTimeMillis();
         List<Future<?>> futures = batch.stream().map(this::processTask).collect(Collectors.toList());
         Future.join(futures).onSuccess(event -> {
             long end = System.currentTimeMillis();
-            log.info("{}, all tasks finished or marked as ERROR. Fetch and process time:{}ms, fetch time:{}ms, process time:{}ms", logTmpl, end - start, processStart - start, end - processStart);
+            log.info("{} tasks processed, {}, Fetch and process time:{}ms, fetch time:{}ms, process time:{}ms", pollId, logTasks, end - start, processStart - start, end - processStart);
             rerunWithDelayIfNecessary(config.getHasTaskPollInterval());
         }).onFailure(e -> {
             // all task should be processed successfully or recovered (marked as ERROR), this is only a safety net e.g. not able to mark task as ERROR into DB
-            log.error("{}, at least one item failed (even unable to mark as ERROR).", logTmpl, e);
+            log.error("{} {}, at least one item failed (even unable to mark as ERROR).", pollId, logTasks, e);
             rerunWithDelayIfNecessary(config.getErrorProcessTasksInterval());
         });
     }
@@ -159,16 +159,18 @@ public class TaskPoller<T> {
                     objectMapper.readValue(taskEntity.getPayload(), config.getPayloadClass())
             );
         } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to deserialize JSON string to object. JSON: " + taskEntity.getPayload(), e);
+            throw new RuntimeException(pollerId + " failed to deserialize JSON string to object. JSON: " + taskEntity.getPayload(), e);
         }
     }
 
     private Future<?> processTask(TaskEntity taskEntity) {
         return Future.succeededFuture()
                 .map(res -> convertTask(taskEntity))
-                .compose(tTask -> config.getTaskProcessor().apply(tTask))
+//                .compose(tTask -> config.getTaskProcessor().apply(tTask))
+                .compose(tTask -> vertx.eventBus().request(taskEntity.getQueueName(), tTask))
+                .onSuccess(res -> log.info("{} task processed successfully, taskId={}, response={}", pollerId, taskEntity.getId(), res.body()))
                 .recover(err -> {
-                    log.error("{} [taskId:{}] Error when try to process the task. Will try to update task status to ERROR.", pollerId, taskEntity.getId(), err);
+                    log.error("{} error occurred, taskId={}, will try to update task status to ERROR.", pollerId, taskEntity.getId(), err);
                     // for recover to mark the task as ERROR, it needs to be in a separate connection
                     return pool.withConnection(conn -> taskQueueServiceImpl.fail(conn, taskEntity.getId()).compose(count -> Future.succeededFuture()));
                 });

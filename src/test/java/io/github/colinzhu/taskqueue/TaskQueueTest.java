@@ -3,6 +3,7 @@ package io.github.colinzhu.taskqueue;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import io.github.colinzhu.taskqueue.example.Payment;
+import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.jdbcclient.JDBCPool;
@@ -83,15 +84,15 @@ class TaskQueueTest {
             case "COMPLETE_DELETE" -> "Q3-need-completeDelete";
             default -> null;
         };
-        TaskPollerConfig<Payment> taskPollerConfig = new TaskPollerConfig<>(queueName, taskProcessor, Payment.class)
+        TaskPollerConfig<Payment> taskPollerConfig = new TaskPollerConfig<>(queueName, Payment.class)
                 .setNoTaskPollInterval(Duration.ofMillis(500)); // make sure it's smaller then the waiting time in verification
-        TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, taskPollerConfig);
-        poller.start();
+
+        Future<String> deployVerticles = vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerConfig.getQueueName(), taskProcessor), new DeploymentOptions().setInstances(1))
+                .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerConfig), new DeploymentOptions().setInstances(1)));
 
         // enqueue a task
         log.info("Payment created: {}", payment);
-        Future<Long> enqueueTask = pool.withTransaction(conn -> savePayment(conn, payment)
-                .compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p)));
+        Future<Long> enqueueTask = deployVerticles.compose(any -> pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p))));
 
         // verify after the poller processing the task
         enqueueTask.onComplete(testContext.succeeding(taskId -> {
@@ -146,13 +147,14 @@ class TaskQueueTest {
             case "COMPLETE_DELETE" -> "Q-already-completed-deleted-by-another-poller";
             default -> null;
         };
-        TaskPollerConfig<Payment> taskPollerConfig = new TaskPollerConfig<>(queueName, taskProcessor, Payment.class)
+        TaskPollerConfig<Payment> taskPollerConfig = new TaskPollerConfig<>(queueName, Payment.class)
                 .setNoTaskPollInterval(Duration.ofMillis(500)); // make sure it's smaller then the waiting time in verification
-        TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, taskPollerConfig);
-        poller.start();
+
+        Future<String> deployVerticles = vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerConfig.getQueueName(), taskProcessor), new DeploymentOptions().setInstances(1))
+                .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerConfig), new DeploymentOptions().setInstances(1)));
 
         // enqueue a task
-        Future<Long> enqueueTask = pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p)));
+        Future<Long> enqueueTask = deployVerticles.compose(any -> pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p))));
 
         // verify after the poller processing the task
         enqueueTask.onComplete(testContext.succeeding(taskId -> {
@@ -189,36 +191,40 @@ class TaskQueueTest {
         };
 
         // prepare a poller
-        TaskPollerConfig<Payment> taskPollerConfig = new TaskPollerConfig<>("Q3-poller-stopped", taskProcessor, Payment.class)
+        TaskPollerConfig<Payment> taskPollerConfig = new TaskPollerConfig<>("Q3-poller-stopped", Payment.class)
                 .setNoTaskPollInterval(Duration.ofMillis(500));  // make sure it's smaller then the waiting time in verification
-        TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, taskPollerConfig);
-        poller.start();
 
-        // stop the poller
-        vertx.setTimer(1000, id -> poller.stop()  // make sure the poller has already processed the task
-                .onSuccess(v -> log.info("poller stopped."))
-                .onSuccess(v -> checkpoint.flag())
-                .onSuccess(v -> {
-                    // after the poller is stopped, enqueue a task
-                    Payment payment = new Payment("CREATED", OffsetDateTime.now());
-                    Future<Long> enqueueTask = pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, "Q3-poller-stopped", "ref1", p)));
+        TaskPollerVerticle<Payment> pollerVerticle = new TaskPollerVerticle<>(pool, taskPollerConfig);
+        Future<String> deployVerticles = vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerConfig.getQueueName(), taskProcessor), new DeploymentOptions().setInstances(1))
+                .compose(any -> vertx.deployVerticle(pollerVerticle));
 
-                    // expect the task should not be processed
-                    enqueueTask.onComplete(testContext.succeeding(taskId -> {
-                        // verify payment status
-                        retrievePayment(payment.getId()).onComplete(testContext.succeeding(res -> {
-                            Assertions.assertEquals("CREATED", res.getStatus(), "PAYMENT should not be changed");
-                            checkpoint.flag();
+        deployVerticles.onSuccess(any -> {
+            // stop the poller
+            vertx.setTimer(1000, id -> pollerVerticle.stopPoller()  // make sure the poller has already processed the task
+                    .onSuccess(v -> log.info("poller stopped."))
+                    .onSuccess(v -> checkpoint.flag())
+                    .onSuccess(v -> {
+                        // after the poller is stopped, enqueue a task
+                        Payment payment = new Payment("CREATED", OffsetDateTime.now());
+                        Future<Long> enqueueTask = pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, "Q3-poller-stopped", "ref1", p)));
+
+                        // expect the task should not be processed
+                        enqueueTask.onComplete(testContext.succeeding(taskId -> {
+                            // verify payment status
+                            retrievePayment(payment.getId()).onComplete(testContext.succeeding(res -> {
+                                Assertions.assertEquals("CREATED", res.getStatus(), "PAYMENT should not be changed");
+                                checkpoint.flag();
+                            }));
+
+                            // verify task
+                            retrieveTask(taskId).onComplete(testContext.succeeding(res -> {
+                                Assertions.assertEquals("CREATED", res.getString("STATUS"), "task should not be checked-out");
+                                checkpoint.flag();
+                            }));
                         }));
-
-                        // verify task
-                        retrieveTask(taskId).onComplete(testContext.succeeding(res -> {
-                            Assertions.assertEquals("CREATED", res.getString("STATUS"), "task should not be checked-out");
-                            checkpoint.flag();
-                        }));
-                    }));
-                })
-        );
+                    })
+            );
+        });
     }
 
     @ParameterizedTest
@@ -250,13 +256,14 @@ class TaskQueueTest {
             case "ERR_BEFORE_TXN" -> "Q-ERR_BEFORE_TXN";
             default -> null;
         };
-        TaskPollerConfig<Payment> taskPollerConfig = new TaskPollerConfig<>(queueName, taskProcessor, Payment.class)
+        TaskPollerConfig<Payment> taskPollerConfig = new TaskPollerConfig<>(queueName, Payment.class)
                 .setNoTaskPollInterval(Duration.ofMillis(500));  // make sure it's smaller then the waiting time in verification
-        TaskPoller<Payment> poller = new TaskPoller<>(vertx, pool, taskPollerConfig);
-        poller.start();
+
+        Future<String> deployVerticles = vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerConfig.getQueueName(), taskProcessor), new DeploymentOptions().setInstances(1))
+                .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerConfig), new DeploymentOptions().setInstances(1)));
 
         // enqueue a task
-        Future<Long> enqueueTask = pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p)));
+        Future<Long> enqueueTask = deployVerticles.compose(any -> pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p))));
 
         // verify after the poller processing the task
         enqueueTask.onComplete(testContext.succeeding(taskId -> {
