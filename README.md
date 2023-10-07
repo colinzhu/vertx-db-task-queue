@@ -36,7 +36,8 @@ Here are the steps to run the `ExampleApp`.
 
 ## Main APIs
 - `Task<T>` - Represents a task to be processed by a processor `Function<Task<T>, Future<?>>`
-- `TaskPoller<T>` - Poller to poll tasks from DB and invoke a task processor
+- `TaskPollerVerticle<T>` - The verticle which wraps a TaskPoller to poll tasks from DB and invoke a task processor
+- `TaskProcessorVerticle<T>` - The verticle which wraps a task processor to process a task
 - `PollConfig<T>` - A simple class to store the poller config
 - `TaskQueueService` - Service to
   1. enqueue - put task into queue
@@ -60,23 +61,22 @@ Example:
 pool.withTransaction(conn -> insertPayment(conn, p)
     .compose(payment -> taskQueueService.enqueue(conn, "payment.check", "REF_" + payment.getId(), payment)))
 ```
-Create a `TaskPoller` to process tasks from a queue with a task processor
+Create a `TaskProcessorVerticle` to process a task, which is retrieved from event bus
+Create a `TaskPollerVerticle` to fetch tasks from a queue, and send to the `TaskProcessorVerticle` through event bus
 
 Example:
 ```java
-// prepare a taskProcessor
-PaymentCheckTaskProcessor taskProcessor = new PaymentCheckTaskProcessor(vertx, pool,  TaskQueueService.taskQueue(vertx));
+// prepare a task poller config
+TaskPollerConfig<Payment> taskPollerReleaseConfig = new TaskPollerConfig<>("payment.release", Payment.class);
 
-// register taskProcessor to poller
-PollConfig<Payment> taskPollerConfig = PollConfig.<Payment>builder()
-        .queueName("payment.check")
-        .batchSize(20) // maximum how many tasks to be taken for each poll 
-        .nextProcessDelay(Duration.ofMinutes(10)) // if a task cannot be completed in 10 minutes, it will be taken from the queue again, so make sure a task can be completed or fail within that period
-        .taskProcessor(taskProcessor)
-        .payloadClass(Payment.class) // the payload class will be converted to JSON string and stored into DB, jackson library is used
-        .build();
-poller = new TaskPoller<>(vertx, pool, taskPollerConfig);
-poller.start();
+// prepare a taskProcessor
+PaymentReleaseTaskProcessor paymentReleaseTaskProcessor = new PaymentReleaseTaskProcessor(vertx, pool, TaskQueueService.taskQueue(vertx));
+
+// deploy TaskProcessorVerticle
+vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerReleaseConfig.getQueueName(), paymentReleaseTaskProcessor), new DeploymentOptions().setInstances(3));
+
+// deploy TaskPollerVerticle
+vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerReleaseConfig), new DeploymentOptions().setInstances(1));
 ```
 Within the task processor, complete a task
 
@@ -150,7 +150,7 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] 2023-10-06 make TaskPollerConfig mutable, so that there is a flexibility to change the config during runtime // 2023-10-06
 - [x] 2023-10-06 rename TaskPollerConfig.nextProcessDelay to deadline 
 - [x] 2023-10-06 rename TaskEntityRepo to TaskQueueRepo
-- [x] 2023-10-07 create a common TaskPollerVerticle
+- [x] 2023-10-07 create common TaskPollerVerticle and TaskProcessorVerticle
 - [x] 2023-10-07 TaskPollerVerticle invokes TaskProcessorVerticle through event bus (request and response)
 - [ ] consider to change task ID from long to UUID
 - [ ] consider to store process result into DB

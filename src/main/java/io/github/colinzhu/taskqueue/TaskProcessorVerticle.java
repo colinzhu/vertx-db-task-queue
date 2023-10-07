@@ -13,14 +13,14 @@ import java.util.function.Function;
 @Slf4j
 @RequiredArgsConstructor
 public class TaskProcessorVerticle<T> extends AbstractVerticle {
-    private final String taskQueueName;
+    private final String queueName;
     private final Function<Task<T>, Future<?>> taskProcessor;
     private String id;
 
     @Override
     public void start() {
-        id = "taskHandlerVerticle-" + taskQueueName + "-" + Integer.toHexString(this.hashCode());
-        vertx.eventBus().consumer(taskQueueName, this::handle);
+        id = "taskHandlerVerticle-" + queueName + "-" + Integer.toHexString(this.hashCode());
+        vertx.eventBus().consumer(queueName, this::handle);
         log.info("{} created", id);
     }
 

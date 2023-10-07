@@ -87,6 +87,7 @@ class TaskQueueTest {
         TaskPollerConfig<Payment> taskPollerConfig = new TaskPollerConfig<>(queueName, Payment.class)
                 .setNoTaskPollInterval(Duration.ofMillis(500)); // make sure it's smaller then the waiting time in verification
 
+        // deploy TaskPollerVerticle and TaskProcessorVerticle
         Future<String> deployVerticles = vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerConfig.getQueueName(), taskProcessor), new DeploymentOptions().setInstances(1))
                 .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerConfig), new DeploymentOptions().setInstances(1)));
 
@@ -150,6 +151,7 @@ class TaskQueueTest {
         TaskPollerConfig<Payment> taskPollerConfig = new TaskPollerConfig<>(queueName, Payment.class)
                 .setNoTaskPollInterval(Duration.ofMillis(500)); // make sure it's smaller then the waiting time in verification
 
+        // deploy TaskPollerVerticle and TaskProcessorVerticle
         Future<String> deployVerticles = vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerConfig.getQueueName(), taskProcessor), new DeploymentOptions().setInstances(1))
                 .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerConfig), new DeploymentOptions().setInstances(1)));
 
@@ -194,6 +196,7 @@ class TaskQueueTest {
         TaskPollerConfig<Payment> taskPollerConfig = new TaskPollerConfig<>("Q3-poller-stopped", Payment.class)
                 .setNoTaskPollInterval(Duration.ofMillis(500));  // make sure it's smaller then the waiting time in verification
 
+        // deploy TaskPollerVerticle and TaskProcessorVerticle
         TaskPollerVerticle<Payment> pollerVerticle = new TaskPollerVerticle<>(pool, taskPollerConfig);
         Future<String> deployVerticles = vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerConfig.getQueueName(), taskProcessor), new DeploymentOptions().setInstances(1))
                 .compose(any -> vertx.deployVerticle(pollerVerticle));
@@ -259,6 +262,7 @@ class TaskQueueTest {
         TaskPollerConfig<Payment> taskPollerConfig = new TaskPollerConfig<>(queueName, Payment.class)
                 .setNoTaskPollInterval(Duration.ofMillis(500));  // make sure it's smaller then the waiting time in verification
 
+        // deploy TaskPollerVerticle and TaskProcessorVerticle
         Future<String> deployVerticles = vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerConfig.getQueueName(), taskProcessor), new DeploymentOptions().setInstances(1))
                 .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerConfig), new DeploymentOptions().setInstances(1)));
 
