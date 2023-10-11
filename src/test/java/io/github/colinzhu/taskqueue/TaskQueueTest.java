@@ -37,11 +37,13 @@ class TaskQueueTest {
         setLogLevel(ROOT_LOGGER_NAME, Level.INFO);
         setLogLevel("com.mchange.v2.resourcepool.BasicResourcePool", Level.INFO);
         setLogLevel("io.github.colinzhu.taskqueue", Level.DEBUG);
-        setLogLevel("io.github.colinzhu.taskqueue.TaskEntityRepo", Level.DEBUG);
+        setLogLevel("io.github.colinzhu.taskqueue.TaskQueueRepo", Level.DEBUG);
+        setLogLevel("io.github.colinzhu.taskqueue.TaskPoller", Level.DEBUG);
 
-        pool = H2Database.getJdbcPool(vertx, true);
         taskQueueService = TaskQueueService.taskQueue(vertx);
-        H2Database.createTables(pool).onComplete(ar -> testContext.completeNow());
+        Database db = Database.get(Database.H2_MEM);
+        pool = db.getJdbcPool(vertx);
+        db.createTables(pool).onComplete(ar -> testContext.completeNow());
     }
 
     private static void setLogLevel(String logger, Level level) {

@@ -152,6 +152,9 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] 2023-10-06 rename TaskEntityRepo to TaskQueueRepo
 - [x] 2023-10-07 create common TaskPollerVerticle and TaskProcessorVerticle
 - [x] 2023-10-07 TaskPollerVerticle invokes TaskProcessorVerticle through event bus (request and response)
+- [x] 2023-10-11 update poller config to add timeout - event bus sendTimeout, rename deadline to nextProcessDelay
+- [x] 2023-10-11 update example to support different databases
+- [x] 2023-10-11 change TaskPoller to public as part of the core API
 - [ ] consider to change task ID from long to UUID
 - [ ] consider to store process result into DB
 - [ ] support other store e.g. redis

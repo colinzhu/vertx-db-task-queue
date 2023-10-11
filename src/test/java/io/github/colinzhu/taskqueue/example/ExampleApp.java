@@ -28,28 +28,28 @@ public class ExampleApp {
         setLogLevel("io.github.colinzhu.taskqueue.TaskQueueRepo", Level.DEBUG);
 
         Vertx vertx = Vertx.vertx();
-        H2Database.createH2Server();
+        Database db = Database.get(Database.H2);
+        db.startServer();
 
-        JDBCPool pool = H2Database.getJdbcPool(vertx, false);
-        H2Database.createTables(pool)
-                .onSuccess(tablesCreated -> deployVerticles(vertx))
+        JDBCPool pool = db.getJdbcPool(vertx);
+        db.createTables(pool)
+                .onSuccess(tablesCreated -> deployVerticles(vertx, pool))
                 .onFailure(err -> log.error("Unable to create tables", err));
 
         appendShutdownHook(vertx);
     }
 
-    private static void deployVerticles(Vertx vertx) {
-        JDBCPool pool = H2Database.getJdbcPool(vertx, false);
-        TaskPollerConfig<Payment> taskPollerCheckConfig = new TaskPollerConfig<>("payment.check", Payment.class);
-        TaskPollerConfig<Payment> taskPollerReleaseConfig = new TaskPollerConfig<>("payment.release", Payment.class);
+    private static void deployVerticles(Vertx vertx, JDBCPool pool) {
+        TaskPollerConfig<Payment> taskPollerCheckConfig = new TaskPollerConfig<>("payment.check", Payment.class).setBatchSize(200);
+        TaskPollerConfig<Payment> taskPollerReleaseConfig = new TaskPollerConfig<>("payment.release", Payment.class).setBatchSize(200);
         PaymentCheckTaskProcessor paymentCheckTaskProcessor = new PaymentCheckTaskProcessor(vertx, pool, TaskQueueService.taskQueue(vertx));
         PaymentReleaseTaskProcessor paymentReleaseTaskProcessor = new PaymentReleaseTaskProcessor(vertx, pool, TaskQueueService.taskQueue(vertx));
 
-        vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerCheckConfig.getQueueName(), paymentCheckTaskProcessor), new DeploymentOptions().setInstances(3))
-                .compose(any -> vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerReleaseConfig.getQueueName(), paymentReleaseTaskProcessor), new DeploymentOptions().setInstances(3)))
+        vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerCheckConfig.getQueueName(), paymentCheckTaskProcessor), new DeploymentOptions().setInstances(8))
+                .compose(any -> vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerReleaseConfig.getQueueName(), paymentReleaseTaskProcessor), new DeploymentOptions().setInstances(8)))
                 .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerCheckConfig), new DeploymentOptions().setInstances(1)))
                 .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerReleaseConfig), new DeploymentOptions().setInstances(1)))
-                .compose(any -> vertx.deployVerticle(WebVerticle.class, new DeploymentOptions().setInstances(2)))
+                .compose(any -> vertx.deployVerticle(() -> new WebVerticle(pool), new DeploymentOptions().setInstances(2)))
                 .onFailure(err -> log.error("error", err));
     }
 

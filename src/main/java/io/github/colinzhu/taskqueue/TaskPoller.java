@@ -6,6 +6,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
+import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.SqlConnection;
 import lombok.AccessLevel;
@@ -19,7 +20,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-class TaskPoller<T> {
+public class TaskPoller<T> {
     private final Vertx vertx;
     private final JDBCPool pool;
     @Getter
@@ -105,7 +106,7 @@ class TaskPoller<T> {
     }
 
     private Future<List<TaskEntity>> checkOutTasks(SqlConnection sqlConnection) {
-        return taskQueueRepo.checkout(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getDeadline());
+        return taskQueueRepo.checkout(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay());
     }
 
     private void handleFetchedTasks(List<TaskEntity> batch, String pollId, long start) {
@@ -167,7 +168,7 @@ class TaskPoller<T> {
         return Future.succeededFuture()
                 .map(res -> convertTask(taskEntity))
 //                .compose(tTask -> config.getTaskProcessor().apply(tTask))
-                .compose(tTask -> vertx.eventBus().request(taskEntity.getQueueName(), tTask))
+                .compose(tTask -> vertx.eventBus().request(taskEntity.getQueueName(), tTask, new DeliveryOptions().setSendTimeout(config.getTimeout().toMillis())))
                 .onSuccess(res -> log.info("{} task processed successfully, taskId={}, response={}", pollerId, taskEntity.getId(), res.body()))
                 .recover(err -> {
                     log.error("{} error occurred, taskId={}, will try to update task status to ERROR.", pollerId, taskEntity.getId(), err);

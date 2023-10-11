@@ -13,18 +13,20 @@ public class TaskPollerVerticle<T> extends AbstractVerticle {
     private final JDBCPool pool;
     private final TaskPollerConfig<T> config;
     private TaskPoller<T> poller;
+    private String logId;
 
     @Override
     public void start() {
-        String taskPollerVerticleId = "taskPollerVerticle-" + config.getQueueName() + "-" + Integer.toHexString(this.hashCode());
+        logId = "taskPollerVerticle-" + config.getQueueName() + "-" + Integer.toHexString(this.hashCode());
         poller = new TaskPoller<>(vertx, pool, config);
         poller.start();
-        log.info("{} created", taskPollerVerticleId);
+        log.info("{} created", logId);
     }
 
     @Override
     public void stop(Promise<Void> stopPromise) {
-        poller.stop().onSuccess(v -> stopPromise.complete());
+        log.info("{} stopping", logId);
+        poller.stop().onSuccess(v -> stopPromise.complete()).onSuccess(v -> log.info("{} stopped", logId));
     }
 
     public void startPoller() {
