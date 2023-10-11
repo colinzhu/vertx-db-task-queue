@@ -26,7 +26,7 @@ class TaskQueueSupportRepo {
     }
 
     // below for support only
-    private static final String SQL_RE_ENQUEUE_ERR_BATCH = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{now}, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID IN ({idList}) AND STATUS = 'ERROR'";
+    private static final String SQL_RE_ENQUEUE_ERR_BATCH = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{now}, PROCESS_RESULT = NULL, LAST_UPDATE_TIME = CURRENT_TIMESTAMP() WHERE ID IN ({idList}) AND STATUS = 'ERROR'";
     private static final String SQL_SEARCH_QNAME_STATUS = "SELECT * FROM TASKS WHERE QUEUE_NAME = #{queueName} AND STATUS = #{status} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY";
     private static final String SQL_COUNT_QNAME_STATUS = "SELECT QUEUE_NAME, STATUS, COUNT(ID) ROWCOUNT FROM TASKS GROUP BY QUEUE_NAME, STATUS ORDER BY QUEUE_NAME, STATUS";
     private static final String SQL_UPDATE_STATUS_BATCH = "UPDATE TASKS SET STATUS = #{toStatus} WHERE ID IN ({idList}) AND STATUS = #{fromStatus}";
@@ -116,6 +116,7 @@ class TaskQueueSupportRepo {
                 .nextProcessTime(row.getOffsetDateTime("NEXT_PROCESS_TIME"))
                 .lastUpdateTime(row.getOffsetDateTime("LAST_UPDATE_TIME"))
                 .payload(row.getString("PAYLOAD"))
+                .processResult(row.getString("PROCESS_RESULT"))
                 .build();
     }
 }

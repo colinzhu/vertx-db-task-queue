@@ -69,7 +69,7 @@ class TaskQueueServiceImpl implements TaskQueueService {
         // 2. there is no direct queue name to send notification
     }
 
-    public Future<Integer> fail(SqlConnection sqlConnection, long taskId) {
-        return taskQueueRepo.updateStatusFrom(sqlConnection, taskId, PROCESSING, ERROR);
+    public Future<Integer> fail(SqlConnection sqlConnection, long taskId, String processResult) {
+        return taskQueueRepo.updateStatusFromWithResult(sqlConnection, taskId, PROCESSING, ERROR, processResult);
     }
 }

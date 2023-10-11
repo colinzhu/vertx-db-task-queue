@@ -31,9 +31,10 @@ class TaskQueueRepo {
     private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, ATTEMPT, PAYLOAD, REFERENCE_NUMBER, CREATE_TIME, NEXT_PROCESS_TIME, LAST_UPDATE_TIME) VALUES (#{queueName}, 'CREATED', 0, #{payload}, #{refNumber}, #{createTime}, #{nextProcessTime}, #{lastUpdateTime})";
     private static final String SQL_FINISH_DELETE = "DELETE TASKS WHERE ID = #{id} AND STATUS = 'PROCESSING'"; // only delete status in PROCESSING, in case updated by other already
     private static final String SQL_UPDATE_STATUS_FROM = "UPDATE TASKS SET STATUS = #{newStatus}, LAST_UPDATE_TIME = #{now} WHERE ID = #{id} and STATUS = #{oriStatus}";
+    private static final String SQL_UPDATE_STATUS_FROM_WITH_RESULT = "UPDATE TASKS SET STATUS = #{newStatus}, LAST_UPDATE_TIME = #{now}, PROCESS_RESULT = #{processResult} WHERE ID = #{id} and STATUS = #{oriStatus}";
     private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE ID IN (SELECT ID FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY) AND STATUS IN ('CREATED','PROCESSING') AND NEXT_PROCESS_TIME <= #{now} FOR UPDATE SKIP LOCKED";
     private static final String SQL_CHECK_OUT = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE ID IN ({idList})";
-    private static final String SQL_RE_ENQUEUE = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE ID = #{id} AND STATUS = 'PROCESSING'";
+    private static final String SQL_RE_ENQUEUE = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now}, PROCESS_RESULT = NULL WHERE ID = #{id} AND STATUS = 'PROCESSING'";
 
     Future<TaskEntity> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
         long start = System.currentTimeMillis();
@@ -56,7 +57,8 @@ class TaskQueueRepo {
                         now,
                         nextProcessTime,
                         now,
-                        payload
+                        payload,
+                        null
                 ))
                 .onSuccess(task -> log.info("task inserted: {}, processDelay={}, time={}ms", task, processDelay, System.currentTimeMillis() - start))
                 .onFailure(err -> log.info("task insert failed: queue={}, refNumber={}, time={}ms", queueName, refNumber, System.currentTimeMillis() - start, err));
@@ -81,6 +83,21 @@ class TaskQueueRepo {
         long start = System.currentTimeMillis();
         return SqlTemplate.forUpdate(sqlConnection, SQL_UPDATE_STATUS_FROM)
                 .execute(Map.of("id", taskId, "oriStatus", oriStatus.name(), "newStatus", newStatus.name(), "now", OffsetDateTime.now()))
+                .map(SqlResult::rowCount)
+                .map(updateCount -> {
+                    if (0 == updateCount) {
+                        throw new IllegalStateException(String.format("task update status to '%s' failed: taskId=%s, toStatus=%s, updateCount=0, expected=1, maybe already deleted by another poller.", newStatus, taskId, newStatus));
+                    } else {
+                        return updateCount;
+                    }
+                })
+                .onSuccess(sqlResult -> log.info("task status updated to '{}': taskId={}, time={}ms", newStatus, taskId, System.currentTimeMillis() - start));
+    }
+
+    Future<Integer> updateStatusFromWithResult(SqlConnection sqlConnection, long taskId, TaskStatus oriStatus, TaskStatus newStatus, String processResult) {
+        long start = System.currentTimeMillis();
+        return SqlTemplate.forUpdate(sqlConnection, SQL_UPDATE_STATUS_FROM_WITH_RESULT)
+                .execute(Map.of("id", taskId, "oriStatus", oriStatus.name(), "newStatus", newStatus.name(), "now", OffsetDateTime.now(), "processResult", processResult))
                 .map(SqlResult::rowCount)
                 .map(updateCount -> {
                     if (0 == updateCount) {

@@ -48,6 +48,7 @@ async function showListTable() {
             { title: "nextProcessTime", field: "nextProcessTime" },
             { title: "lastUpdateTime", field: "lastUpdateTime" },
             { title: "payload", field: "payload" },
+            { title: "processResult", field: "processResult" },
         ],
     });
     return table;

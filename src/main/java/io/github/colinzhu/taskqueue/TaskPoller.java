@@ -181,7 +181,7 @@ public class TaskPoller<T> {
                 .recover(err -> {
                     log.error("{} error occurred, taskId={}, will try to update task status to ERROR.", pollerId, taskEntity.getId(), err);
                     // for recover to mark the task as ERROR, it needs to be in a separate connection
-                    return pool.withConnection(conn -> taskQueueServiceImpl.fail(conn, taskEntity.getId()).compose(count -> Future.succeededFuture()));
+                    return pool.withConnection(conn -> taskQueueServiceImpl.fail(conn, taskEntity.getId(), err.getMessage()).compose(count -> Future.succeededFuture()));
                 });
     }
 
