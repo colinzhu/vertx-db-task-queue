@@ -124,7 +124,7 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] junit - done
 - [ ] micrometer - create_time -> delete_time, checkout_time -> delete_time
 - [x] expose ATTEMPT in Task
-- [ ] test: when 2 instances, 1 is down but with checked-out tasks in progress, the 2nd instance will continue to process
+- [x] test: when 2 instances, 1 is down but with checked-out tasks in progress, the 2nd instance will continue to process
 - [x] support API: searchByQueueNameAndStatus
 - [x] support API: reprocessErrorTasks 
 - [x] support API: countGroupByQueueNameAndStatus
@@ -156,6 +156,9 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] 2023-10-11 update example to support different databases
 - [x] 2023-10-11 change TaskPoller to public as part of the core API
 - [x] 2023-10-11 enhance poller shutdown logic
+- [x] test with 4 instances (JVM) to poll tasks from one DB instance, 1. no duplicate processing 2. no error
+- [x] test request timeout which should mark as ERROR
+- [ ] change support UI layout - swap row and column
 - [ ] consider to change task ID from long to UUID
 - [ ] consider to store process result into DB
 - [ ] support other store e.g. redis

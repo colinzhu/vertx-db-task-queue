@@ -40,13 +40,13 @@ public class ExampleApp {
     }
 
     private static void deployVerticles(Vertx vertx, JDBCPool pool) {
-        TaskPollerConfig<Payment> taskPollerCheckConfig = new TaskPollerConfig<>("payment.check", Payment.class).setBatchSize(200);
-        TaskPollerConfig<Payment> taskPollerReleaseConfig = new TaskPollerConfig<>("payment.release", Payment.class).setBatchSize(200);
+        TaskPollerConfig<Payment> taskPollerCheckConfig = new TaskPollerConfig<>("payment.check", Payment.class).setBatchSize(50);
+        TaskPollerConfig<Payment> taskPollerReleaseConfig = new TaskPollerConfig<>("payment.release", Payment.class).setBatchSize(50);
         PaymentCheckTaskProcessor paymentCheckTaskProcessor = new PaymentCheckTaskProcessor(vertx, pool, TaskQueueService.taskQueue(vertx));
         PaymentReleaseTaskProcessor paymentReleaseTaskProcessor = new PaymentReleaseTaskProcessor(vertx, pool, TaskQueueService.taskQueue(vertx));
 
-        vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerCheckConfig.getQueueName(), paymentCheckTaskProcessor), new DeploymentOptions().setInstances(8))
-                .compose(any -> vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerReleaseConfig.getQueueName(), paymentReleaseTaskProcessor), new DeploymentOptions().setInstances(8)))
+        vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerCheckConfig.getQueueName(), paymentCheckTaskProcessor), new DeploymentOptions().setInstances(1))
+                .compose(any -> vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerReleaseConfig.getQueueName(), paymentReleaseTaskProcessor), new DeploymentOptions().setInstances(1)))
                 .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerCheckConfig), new DeploymentOptions().setInstances(1)))
                 .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerReleaseConfig), new DeploymentOptions().setInstances(1)))
                 .compose(any -> vertx.deployVerticle(() -> new WebVerticle(pool), new DeploymentOptions().setInstances(2)))
