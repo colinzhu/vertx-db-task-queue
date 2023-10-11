@@ -34,6 +34,7 @@ public class TaskPoller<T> {
     private boolean isStopped = true; // default is stopped, until start() is invoked
     private long timerId = -1;
     private boolean isNoTaskWaitingForTimer = false;
+    private boolean isWaiting = false;
     public TaskPoller(Vertx vertx, JDBCPool pool, TaskPollerConfig<T> config) {
         this(vertx, pool, config, TaskQueueRepo.getInstance(), new TaskQueueServiceImpl(vertx, TaskQueueRepo.getInstance()));
         pollerId = "poller-" + config.getQueueName() + "-" + Integer.toHexString(this.hashCode());
@@ -68,6 +69,11 @@ public class TaskPoller<T> {
         } else {
             vertx.setPeriodic(1000, id -> {
                 log.info("{} stopping, checking status", pollerId);
+                if (isWaiting) {
+                    vertx.cancelTimer(timerId);
+                    log.info("{} was waiting for next poll, timer cancelled, can stop immediately", pollerId);
+                    isStopped = true;
+                }
                 if (isStopped) {
                     log.info("{} stopped", pollerId);
                     promise.complete();
@@ -83,6 +89,7 @@ public class TaskPoller<T> {
      */
     private void fetchBatchAndProcess() {
         isNoTaskWaitingForTimer = false;
+        isWaiting = false;
         if (isToStop) {
             log.info("{} isToStop=true, stop polling", pollerId);
             isStopped = true;
@@ -142,6 +149,7 @@ public class TaskPoller<T> {
             } else {
                 log.debug("{} rerun delay={}", pollerId, delay);
                 timerId = vertx.setTimer(delay.toMillis(), id -> fetchBatchAndProcess());
+                isWaiting = true;
                 if (isNoTask) { // only allow to cancel timer when it's normal and no task case
                     isNoTaskWaitingForTimer = true;
                 }
