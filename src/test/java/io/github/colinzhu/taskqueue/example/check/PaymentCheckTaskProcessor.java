@@ -41,12 +41,12 @@ public class PaymentCheckTaskProcessor implements Function<Task<Payment>, Future
         return txn.query("UPDATE PAYMENT SET STATUS = 'PENDING_RELEASE' WHERE ID = " + payment.getId())
                 .execute()
                 .compose(res -> {
-                    if (task.getAttempt() >= 1) {
+                    if (task.getAttempt() >= 3 || RandomGenerator.getDefault().nextInt(1, 3) == 2) {
                         return taskQueueService.complete(txn, task.getId(), "test complete result")
                                 .compose(any -> taskQueueService.enqueue(txn,"payment.release", "REF_" + task.getPayload().getId(), task.getPayload()))
                                 .compose(any -> Future.succeededFuture());
                     } else {
-                        return taskQueueService.reenqueue(txn, task.getId(), Duration.ofSeconds(task.getAttempt()));
+                        return taskQueueService.reenqueue(txn, task.getId(), Duration.ofSeconds(1), "test reenqueue process result " + task.getAttempt());
                     }
                 });
     }

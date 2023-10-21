@@ -78,4 +78,14 @@ public interface TaskQueueService {
      * @return future of number of task updated
      */
     Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay);
+
+    /**
+     * Update the task so that it can be processed again later
+     * @param sqlConnection DB transaction
+     * @param taskId the task ID
+     * @param delay process delay time after putting into the queue
+     * @param processResult current process result before the next process
+     * @return future of number of task updated
+     */
+    Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay, String processResult);
 }

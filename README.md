@@ -160,7 +160,7 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] test request timeout which should mark as ERROR
 - [x] 2023-10-21 support storing process result for failure case for problem investigation, max 4000 bytes
 - [x] 2023-10-21 support storing process result for complete case
-- [ ] support storing process result for reenqueue case
+- [x] 2023-10-21 support storing process result for reenqueue case
 - [ ] support unique task - add unique key for queueName + referenceNumber
 - [ ] change checkout implementation, doesn't lock records to prevent records being locked by zombie connections
 - [ ] micrometer - create_time -> delete_time, checkout_time -> delete_time

@@ -39,7 +39,8 @@ class TaskQueueRepo {
     private static final String SQL_UPDATE_STATUS_FROM_WITH_RESULT = "UPDATE TASKS SET STATUS = #{newStatus}, LAST_UPDATE_TIME = #{now}, PROCESS_RESULT = #{processResult} WHERE ID = #{id} and STATUS = #{oriStatus}";
     private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE ID IN (SELECT ID FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY) AND STATUS IN ('CREATED','PROCESSING') AND NEXT_PROCESS_TIME <= #{now} FOR UPDATE SKIP LOCKED";
     private static final String SQL_CHECK_OUT = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE ID IN ({idList})";
-    private static final String SQL_RE_ENQUEUE = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now}, PROCESS_RESULT = NULL WHERE ID = #{id} AND STATUS = 'PROCESSING'";
+    private static final String SQL_RE_ENQUEUE_WITH_RESULT_NULL = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now}, PROCESS_RESULT = NULL WHERE ID = #{id} AND STATUS = 'PROCESSING'";
+    private static final String SQL_RE_ENQUEUE_WITH_RESULT = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now}, PROCESS_RESULT = #{processResult} WHERE ID = #{id} AND STATUS = 'PROCESSING'";
 
     Future<TaskEntity> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
         long start = System.currentTimeMillis();
@@ -161,12 +162,24 @@ class TaskQueueRepo {
     }
 
 
-    Future<Integer> reenqueue(SqlConnection sqlConnection, Long taskId, Duration nextProcessDelay) {
+    Future<Integer> reenqueue(SqlConnection sqlConnection, Long taskId, Duration nextProcessDelay, String processResult) {
         long start = System.currentTimeMillis();
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime newNextProcessTime = now.plusSeconds(nextProcessDelay.getSeconds());
-        return SqlTemplate.forUpdate(sqlConnection, SQL_RE_ENQUEUE)
-                .execute(Map.of("id", taskId, "now", now, "newNextProcessTime", newNextProcessTime))
+
+        String truncatedResult = truncateToUtf8ByteLength(processResult, 4000);
+        String sql;
+        Map<String, Object> map;
+        if (null == truncatedResult) {
+            sql = SQL_RE_ENQUEUE_WITH_RESULT_NULL;
+            map = Map.of("id", taskId, "now", now, "newNextProcessTime", newNextProcessTime);
+        } else {
+            sql = SQL_RE_ENQUEUE_WITH_RESULT;
+            map = Map.of("id", taskId, "now", now, "newNextProcessTime", newNextProcessTime, "processResult", truncatedResult);
+        }
+
+        return SqlTemplate.forUpdate(sqlConnection, sql)
+                .execute(map)
                 .map(SqlResult::rowCount)
                 .map(updateCount -> {
                     if (0 == updateCount) {

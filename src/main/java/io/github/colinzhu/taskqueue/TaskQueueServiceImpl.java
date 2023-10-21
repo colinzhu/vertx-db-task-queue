@@ -67,7 +67,12 @@ class TaskQueueServiceImpl implements TaskQueueService {
 
     @Override
     public Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay) {
-        return taskQueueRepo.reenqueue(sqlConnection, taskId, delay);
+        return reenqueue(sqlConnection, taskId, delay, null);
+    }
+
+    @Override
+    public Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay, String processResult) {
+        return taskQueueRepo.reenqueue(sqlConnection, taskId, delay, processResult);
         // not sending new task notification to poller, the task will wait for some time before being processed, max noTaskInterval
         // because:
         // 1. usually reenqueue should have a delay

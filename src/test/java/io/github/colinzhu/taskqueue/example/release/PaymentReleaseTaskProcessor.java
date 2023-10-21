@@ -32,7 +32,7 @@ public class PaymentReleaseTaskProcessor implements Function<Task<Payment>, Futu
         return txn.query("UPDATE PAYMENT SET STATUS = 'RELEASED' WHERE ID = " + payment.getId())
                 .execute()
                 .compose(res -> {
-                    if (task.getAttempt() >= 1) {
+                    if (task.getAttempt() >= 3 || RandomGenerator.getDefault().nextInt(1, 3) == 2) {
                         return taskQueueService.complete(txn, task.getId());
                     } else {
                         return taskQueueService.reenqueue(txn, task.getId(), Duration.ofSeconds(task.getAttempt()));
