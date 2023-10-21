@@ -53,6 +53,15 @@ public interface TaskQueueService {
     Future<Integer> complete(SqlConnection sqlConnection, long taskId);
 
     /**
+     * To complete the task
+     * @param sqlConnection DB transaction
+     * @param taskId the task ID
+     * @param processResult the process result
+     * @return future of number of task updated
+     */
+    Future<Integer> complete(SqlConnection sqlConnection, long taskId, String processResult);
+
+    /**
      * To complete by deleting the task
      * @param sqlConnection DB transaction
      * @param taskId the task ID

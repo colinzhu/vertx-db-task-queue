@@ -35,7 +35,7 @@ class TaskQueueRepo {
 
     private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, ATTEMPT, PAYLOAD, REFERENCE_NUMBER, CREATE_TIME, NEXT_PROCESS_TIME, LAST_UPDATE_TIME) VALUES (#{queueName}, 'CREATED', 0, #{payload}, #{refNumber}, #{createTime}, #{nextProcessTime}, #{lastUpdateTime})";
     private static final String SQL_FINISH_DELETE = "DELETE TASKS WHERE ID = #{id} AND STATUS = 'PROCESSING'"; // only delete status in PROCESSING, in case updated by other already
-    private static final String SQL_UPDATE_STATUS_FROM = "UPDATE TASKS SET STATUS = #{newStatus}, LAST_UPDATE_TIME = #{now} WHERE ID = #{id} and STATUS = #{oriStatus}";
+    private static final String SQL_UPDATE_STATUS_FROM_WITH_RESULT_NULL = "UPDATE TASKS SET STATUS = #{newStatus}, LAST_UPDATE_TIME = #{now}, PROCESS_RESULT = NULL WHERE ID = #{id} and STATUS = #{oriStatus}";
     private static final String SQL_UPDATE_STATUS_FROM_WITH_RESULT = "UPDATE TASKS SET STATUS = #{newStatus}, LAST_UPDATE_TIME = #{now}, PROCESS_RESULT = #{processResult} WHERE ID = #{id} and STATUS = #{oriStatus}";
     private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE ID IN (SELECT ID FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY) AND STATUS IN ('CREATED','PROCESSING') AND NEXT_PROCESS_TIME <= #{now} FOR UPDATE SKIP LOCKED";
     private static final String SQL_CHECK_OUT = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE ID IN ({idList})";
@@ -84,25 +84,20 @@ class TaskQueueRepo {
                 .onSuccess(sqlResult -> log.info("task deleted: taskId={}, time={}ms", taskId, System.currentTimeMillis() - start));
     }
 
-    Future<Integer> updateStatusFrom(SqlConnection sqlConnection, long taskId, TaskStatus oriStatus, TaskStatus newStatus) {
-        long start = System.currentTimeMillis();
-        return SqlTemplate.forUpdate(sqlConnection, SQL_UPDATE_STATUS_FROM)
-                .execute(Map.of("id", taskId, "oriStatus", oriStatus.name(), "newStatus", newStatus.name(), "now", OffsetDateTime.now()))
-                .map(SqlResult::rowCount)
-                .map(updateCount -> {
-                    if (0 == updateCount) {
-                        throw new IllegalStateException(String.format("task update status to '%s' failed: taskId=%s, toStatus=%s, updateCount=0, expected=1, maybe already deleted by another poller.", newStatus, taskId, newStatus));
-                    } else {
-                        return updateCount;
-                    }
-                })
-                .onSuccess(sqlResult -> log.info("task status updated to '{}': taskId={}, time={}ms", newStatus, taskId, System.currentTimeMillis() - start));
-    }
-
     Future<Integer> updateStatusFromWithResult(SqlConnection sqlConnection, long taskId, TaskStatus oriStatus, TaskStatus newStatus, String processResult) {
         long start = System.currentTimeMillis();
-        return SqlTemplate.forUpdate(sqlConnection, SQL_UPDATE_STATUS_FROM_WITH_RESULT)
-                .execute(Map.of("id", taskId, "oriStatus", oriStatus.name(), "newStatus", newStatus.name(), "now", OffsetDateTime.now(), "processResult", truncateToUtf8ByteLength(processResult,4000)))
+        String truncatedResult = truncateToUtf8ByteLength(processResult, 4000);
+        String sql;
+        Map<String, Object> map;
+        if (null == truncatedResult) {
+            sql = SQL_UPDATE_STATUS_FROM_WITH_RESULT_NULL;
+            map = Map.of("id", taskId, "oriStatus", oriStatus.name(), "newStatus", newStatus.name(), "now", OffsetDateTime.now());
+        } else {
+            sql = SQL_UPDATE_STATUS_FROM_WITH_RESULT;
+            map = Map.of("id", taskId, "oriStatus", oriStatus.name(), "newStatus", newStatus.name(), "now", OffsetDateTime.now(), "processResult", truncatedResult);
+        }
+        return SqlTemplate.forUpdate(sqlConnection, sql)
+                .execute(map)
                 .map(SqlResult::rowCount)
                 .map(updateCount -> {
                     if (0 == updateCount) {

@@ -52,7 +52,12 @@ class TaskQueueServiceImpl implements TaskQueueService {
 
     @Override
     public Future<Integer> complete(SqlConnection sqlConnection, long taskId) {
-        return taskQueueRepo.updateStatusFrom(sqlConnection, taskId, PROCESSING, COMPLETED);
+        return complete(sqlConnection, taskId, null);
+    }
+
+    @Override
+    public Future<Integer> complete(SqlConnection sqlConnection, long taskId, String processResult) {
+        return taskQueueRepo.updateStatusFromWithResult(sqlConnection, taskId, PROCESSING, COMPLETED, processResult);
     }
 
     @Override
