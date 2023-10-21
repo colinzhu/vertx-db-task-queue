@@ -25,27 +25,31 @@ public class PaymentReleaseTaskProcessor implements Function<Task<Payment>, Futu
     @Override
     public Future<Integer> apply(Task<Payment> task) {
         return doSomething(task)
-                .compose(payment -> pool.withTransaction(conn -> persistChanges(conn, payment, task)));
+                .recover(err -> Future.succeededFuture(err.getMessage()))
+                .compose(res -> pool.withTransaction(conn -> persistChanges(conn, res, task)));
     }
 
-    private Future<Integer> persistChanges(SqlConnection txn, Payment payment, Task<Payment> task) {
-        return txn.query("UPDATE PAYMENT SET STATUS = 'RELEASED' WHERE ID = " + payment.getId())
-                .execute()
-                .compose(res -> {
-                    if (task.getAttempt() >= 3 || RandomGenerator.getDefault().nextInt(1, 3) == 2) {
-                        return taskQueueService.complete(txn, task.getId());
-                    } else {
-                        return taskQueueService.reenqueue(txn, task.getId(), Duration.ofSeconds(task.getAttempt()));
-                    }
-                });
+    private Future<Integer> persistChanges(SqlConnection txn, String result, Task<Payment> task) {
+        if ("success".equals(result)) {
+            return txn.query("UPDATE PAYMENT SET STATUS = 'RELEASED' WHERE ID = " + task.getPayload().getId())
+                    .execute()
+                    .compose(res -> taskQueueService.complete(txn, task.getId()));
+        } else { // example to use reenqueue as a retry
+            return taskQueueService.reenqueue(txn, task.getId(), Duration.ofSeconds(2), "failed to release, retry in 2 sec, err=" + result);
+        }
     }
 
     // do some blocking task OUTSIDE the DB transaction, e.g. call HTTP API
-    private Future<Payment> doSomething(Task<Payment> task) {
-        Promise<Payment> promise = Promise.promise();
+    private Future<String> doSomething(Task<Payment> task) {
+        Promise<String> promise = Promise.promise();
         vertx.setTimer(RandomGenerator.getDefault().nextInt(499, 500), id -> {
-            log.info("[taskId:{}] doSomething release completed. Attempt={}. Payload:{}", task.getId(), task.getAttempt(), task.getPayload());
-            promise.complete(task.getPayload());
+            if (RandomGenerator.getDefault().nextInt(1, 10) != 7) {
+                log.info("[taskId:{}] doSomething release completed. Attempt={}. Payload:{}", task.getId(), task.getAttempt(), task.getPayload());
+                promise.complete("success");
+            } else {
+                log.error("[taskId:{}] doSomething release failed. Attempt={}. Payload:{}", task.getId(), task.getAttempt(), task.getPayload());
+                promise.fail(new RuntimeException("simulate failed to release"));
+            }
         });
         return promise.future();
     }

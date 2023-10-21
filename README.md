@@ -112,7 +112,8 @@ CREATE TABLE TASKS (
   PROCESS_RESULT VARCHAR2(4000),
   CREATE_TIME TIMESTAMP with TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   NEXT_PROCESS_TIME   TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  LAST_UPDATE_TIME   TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  LAST_UPDATE_TIME   TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT UC_TASK UNIQUE (REFERENCE_NUMBER,QUEUE_NAME)
 );
 CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 ```
@@ -161,12 +162,12 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] 2023-10-21 support storing process result for failure case for problem investigation, max 4000 bytes
 - [x] 2023-10-21 support storing process result for complete case
 - [x] 2023-10-21 support storing process result for reenqueue case
-- [ ] support unique task - add unique key for queueName + referenceNumber
+- [x] 2023-10-21 support unique task - add unique key for queueName + referenceNumber
+- [x] 2023-10-21 add example to implement retry by using requeue feature
 - [ ] change checkout implementation, doesn't lock records to prevent records being locked by zombie connections
 - [ ] micrometer - create_time -> delete_time, checkout_time -> delete_time
 - [ ] change support UI layout - swap row and column
 - [ ] consider to change task ID from long to UUID
-- [ ] consider to store process result into DB
 - [ ] house keep - regularly move records to history table
 - [ ] house keep - regularly delete records in history table
 - [ ] support other store e.g. redis
