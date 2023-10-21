@@ -109,6 +109,7 @@ CREATE TABLE TASKS (
   STATUS VARCHAR2(30),
   ATTEMPT NUMBER DEFAULT 0,
   PAYLOAD CLOB,
+  PROCESS_RESULT VARCHAR2(4000),
   CREATE_TIME TIMESTAMP with TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   NEXT_PROCESS_TIME   TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   LAST_UPDATE_TIME   TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -122,7 +123,6 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] Task processing error handling - done
 - [x] reenqueue - done
 - [x] junit - done
-- [ ] micrometer - create_time -> delete_time, checkout_time -> delete_time
 - [x] expose ATTEMPT in Task
 - [x] test: when 2 instances, 1 is down but with checked-out tasks in progress, the 2nd instance will continue to process
 - [x] support API: searchByQueueNameAndStatus
@@ -158,8 +158,15 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] 2023-10-11 enhance poller shutdown logic
 - [x] test with 4 instances (JVM) to poll tasks from one DB instance, 1. no duplicate processing 2. no error
 - [x] test request timeout which should mark as ERROR
+- [x] 2023-10-21 support storing process result for failure case for problem investigation, max 4000 bytes
+- [ ] support storing process result for complete and reenqueue case
+- [ ] support unique task - add unique key for queueName + referenceNumber
+- [ ] change checkout implementation, doesn't lock records to prevent records being locked by zombie connections
+- [ ] micrometer - create_time -> delete_time, checkout_time -> delete_time
 - [ ] change support UI layout - swap row and column
 - [ ] consider to change task ID from long to UUID
 - [ ] consider to store process result into DB
+- [ ] house keep - regularly move records to history table
+- [ ] house keep - regularly delete records in history table
 - [ ] support other store e.g. redis
 - [ ] upload to maven central

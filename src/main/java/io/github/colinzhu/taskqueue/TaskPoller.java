@@ -14,6 +14,8 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.time.Duration;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -181,8 +183,13 @@ public class TaskPoller<T> {
                 .recover(err -> {
                     log.error("{} error occurred, taskId={}, will try to update task status to ERROR.", pollerId, taskEntity.getId(), err);
                     // for recover to mark the task as ERROR, it needs to be in a separate connection
-                    return pool.withConnection(conn -> taskQueueServiceImpl.fail(conn, taskEntity.getId(), err.getMessage()).compose(count -> Future.succeededFuture()));
+                    return pool.withConnection(conn -> taskQueueServiceImpl.fail(conn, taskEntity.getId(), getStackTrace(err)).compose(count -> Future.succeededFuture()));
                 });
     }
 
+    private String getStackTrace(Throwable t) {
+        StringWriter sw = new StringWriter();
+        t.printStackTrace(new PrintWriter(sw));
+        return sw.toString();
+    }
 }

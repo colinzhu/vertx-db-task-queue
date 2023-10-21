@@ -10,6 +10,11 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -97,7 +102,7 @@ class TaskQueueRepo {
     Future<Integer> updateStatusFromWithResult(SqlConnection sqlConnection, long taskId, TaskStatus oriStatus, TaskStatus newStatus, String processResult) {
         long start = System.currentTimeMillis();
         return SqlTemplate.forUpdate(sqlConnection, SQL_UPDATE_STATUS_FROM_WITH_RESULT)
-                .execute(Map.of("id", taskId, "oriStatus", oriStatus.name(), "newStatus", newStatus.name(), "now", OffsetDateTime.now(), "processResult", processResult))
+                .execute(Map.of("id", taskId, "oriStatus", oriStatus.name(), "newStatus", newStatus.name(), "now", OffsetDateTime.now(), "processResult", truncateToUtf8ByteLength(processResult,4000)))
                 .map(SqlResult::rowCount)
                 .map(updateCount -> {
                     if (0 == updateCount) {
@@ -191,4 +196,24 @@ class TaskQueueRepo {
                 .payload(row.getString("PAYLOAD"))
                 .build();
     }
+
+    private static String truncateToUtf8ByteLength(String s, int maxBytes) {
+        if (s == null) {
+            return null;
+        }
+        CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
+        byte[] sba = s.getBytes(StandardCharsets.UTF_8);
+        if (sba.length <= maxBytes) {
+            return s;
+        }
+        // Ensure truncation by having byte buffer = maxBytes
+        ByteBuffer bb = ByteBuffer.wrap(sba, 0, maxBytes);
+        CharBuffer cb = CharBuffer.allocate(maxBytes);
+        // Ignore an incomplete character
+        decoder.onMalformedInput(CodingErrorAction.IGNORE);
+        decoder.decode(bb, cb, true);
+        decoder.flush(cb);
+        return new String(cb.array(), 0, cb.position());
+    }
+
 }

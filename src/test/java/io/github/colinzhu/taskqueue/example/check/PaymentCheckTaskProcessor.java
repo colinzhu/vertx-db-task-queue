@@ -28,6 +28,8 @@ public class PaymentCheckTaskProcessor implements Function<Task<Payment>, Future
                 .compose(payment -> {
                     if (RandomGenerator.getDefault().nextInt(1, 10) == 7) {
                         return Future.failedFuture("Simulate error e.g. after retry still fail case.");
+                    } else if (RandomGenerator.getDefault().nextInt(1, 10) == 8) {
+                        throw new RuntimeException("Test runtime exception.");
                     } else {
                         return Future.succeededFuture(payment);
                     }
