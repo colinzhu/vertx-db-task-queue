@@ -37,10 +37,13 @@ class TaskQueueRepo {
     private static final String SQL_FINISH_DELETE = "DELETE TASKS WHERE ID = #{id} AND STATUS = 'PROCESSING'"; // only delete status in PROCESSING, in case updated by other already
     private static final String SQL_UPDATE_STATUS_FROM_WITH_RESULT_NULL = "UPDATE TASKS SET STATUS = #{newStatus}, LAST_UPDATE_TIME = #{now}, PROCESS_RESULT = NULL WHERE ID = #{id} and STATUS = #{oriStatus}";
     private static final String SQL_UPDATE_STATUS_FROM_WITH_RESULT = "UPDATE TASKS SET STATUS = #{newStatus}, LAST_UPDATE_TIME = #{now}, PROCESS_RESULT = #{processResult} WHERE ID = #{id} and STATUS = #{oriStatus}";
-    private static final String SQL_SELECT_FOR_UPDATE = "SELECT * FROM TASKS WHERE ID IN (SELECT ID FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY) AND STATUS IN ('CREATED','PROCESSING') AND NEXT_PROCESS_TIME <= #{now} FOR UPDATE SKIP LOCKED";
-    private static final String SQL_CHECK_OUT = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE ID IN ({idList})";
-    private static final String SQL_RE_ENQUEUE_WITH_RESULT_NULL = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now}, PROCESS_RESULT = NULL WHERE ID = #{id} AND STATUS = 'PROCESSING'";
-    private static final String SQL_RE_ENQUEUE_WITH_RESULT = "UPDATE TASKS SET STATUS = 'CREATED', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now}, PROCESS_RESULT = #{processResult} WHERE ID = #{id} AND STATUS = 'PROCESSING'";
+    private static final String SQL_CHECK_OUT_STEP1_SELECT = "SELECT * FROM TASKS WHERE ID IN (SELECT ID FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY) AND STATUS IN ('CREATED','PROCESSING') AND NEXT_PROCESS_TIME <= #{now} FOR UPDATE SKIP LOCKED";
+    private static final String SQL_CHECK_OUT_STEP2_UPDATE = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE ID IN ({idList})";
+    private static final String SQL_CHECK_OUT_2_STEP1 = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', POLLER_INSTANCE = #{pollerInstance}, NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE (ID, LAST_UPDATE_TIME) IN ((SELECT ID, LAST_UPDATE_TIME FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY)) AND NEXT_PROCESS_TIME <= #{now}";
+    private static final String SQL_CHECK_OUT_2_STEP1_OPTION2 = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', POLLER_INSTANCE = #{pollerInstance}, NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} AND ROWNUM <= #{batchSize}";
+    private static final String SQL_CHECK_OUT_2_STEP2 = "SELECT * FROM TASKS WHERE STATUS = 'PROCESSING' AND QUEUE_NAME = #{queueName} AND POLLER_INSTANCE = #{pollerInstance}";
+    private static final String SQL_RE_ENQUEUE_WITH_RESULT_NULL = "UPDATE TASKS SET STATUS = 'CREATED', POLLER_INSTANCE = NULL, NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now}, PROCESS_RESULT = NULL WHERE ID = #{id} AND STATUS = 'PROCESSING'";
+    private static final String SQL_RE_ENQUEUE_WITH_RESULT = "UPDATE TASKS SET STATUS = 'CREATED', POLLER_INSTANCE = NULL, NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now}, PROCESS_RESULT = #{processResult} WHERE ID = #{id} AND STATUS = 'PROCESSING'";
 
     Future<TaskEntity> insert(SqlConnection sqlConnection, String queueName, String refNumber, String payload, Duration processDelay) {
         long start = System.currentTimeMillis();
@@ -60,6 +63,7 @@ class TaskQueueRepo {
                         queueName,
                         CREATED,
                         0L,
+                        null,
                         now,
                         nextProcessTime,
                         now,
@@ -107,7 +111,26 @@ class TaskQueueRepo {
                         return updateCount;
                     }
                 })
+                .recover(err -> {
+                    if (err instanceof IllegalStateException) {
+                        return Future.failedFuture(err);
+                    } else {
+                        log.warn("task update status to '{}' failed: taskId={} with other unexpected exception, will retry once, time={}ms", newStatus, taskId, System.currentTimeMillis() - start, err);
+                        return SqlTemplate.forUpdate(sqlConnection, sql)
+                                .execute(map)
+                                .map(SqlResult::rowCount)
+                                .map(updateCount -> {
+                                    if (0 == updateCount) {
+                                        throw new IllegalStateException(String.format("task update status to '%s' failed: taskId=%s, toStatus=%s, updateCount=0, expected=1, maybe already deleted by another poller.", newStatus, taskId, newStatus));
+                                    } else {
+                                        return updateCount;
+                                    }
+                                })
+                                .onSuccess(sqlResult -> log.info("task status updated to '{}' successfully (retried): taskId={}, time={}ms", newStatus, taskId, System.currentTimeMillis() - start));
+                    }
+                })
                 .onSuccess(sqlResult -> log.info("task status updated to '{}': taskId={}, time={}ms", newStatus, taskId, System.currentTimeMillis() - start));
+
     }
 
     Future<List<TaskEntity>> checkout(SqlConnection sqlConnection, String queueName, int batchSize, Duration deadline) {
@@ -120,7 +143,7 @@ class TaskQueueRepo {
 
     private Future<List<TaskEntity>> checkoutSelect(SqlConnection sqlConnection, String queueName, int batchSize) {
         long start = System.currentTimeMillis();
-        return SqlTemplate.forQuery(sqlConnection, SQL_SELECT_FOR_UPDATE)
+        return SqlTemplate.forQuery(sqlConnection, SQL_CHECK_OUT_STEP1_SELECT)
                 .execute(Map.of("now", OffsetDateTime.now(), "queueName", queueName, "batchSize", batchSize))
                 .onFailure(err -> log.error("task checkoutSelect failed: queue={}, time={}ms", queueName, System.currentTimeMillis() - start, err))
                 .map(rows -> {
@@ -133,15 +156,15 @@ class TaskQueueRepo {
                 });
     }
 
-    private Future<Integer> checkoutUpdate(SqlConnection sqlConnection, List<Long> taskIdList, Duration deadline) {
+    private Future<Integer> checkoutUpdate(SqlConnection sqlConnection, List<Long> taskIdList, Duration nextProcessDelay) {
         long start = System.currentTimeMillis();
         Future<Integer> future;
         if (taskIdList.isEmpty()) {
             future = Future.succeededFuture(0);
         } else {
             String idValues = taskIdList.stream().map(String::valueOf).collect(Collectors.joining(","));
-            String sql = SQL_CHECK_OUT.replace("{idList}", idValues);
-            OffsetDateTime newNextProcessTime = OffsetDateTime.now().plusSeconds(deadline.getSeconds());
+            String sql = SQL_CHECK_OUT_STEP2_UPDATE.replace("{idList}", idValues);
+            OffsetDateTime newNextProcessTime = OffsetDateTime.now().plusSeconds(nextProcessDelay.getSeconds());
             future = SqlTemplate.forUpdate(sqlConnection, sql)
                     .execute(Map.of("now", OffsetDateTime.now(), "newNextProcessTime", newNextProcessTime))
                     .map(SqlResult::rowCount)
@@ -161,6 +184,40 @@ class TaskQueueRepo {
                 });
     }
 
+    Future<List<TaskEntity>> checkout2(SqlConnection sqlConnection, String queueName, int batchSize, Duration nextProcessDelay, String pollerInstance) {
+        var step1updateCount = checkout2step1update(sqlConnection, queueName, batchSize, nextProcessDelay, pollerInstance);
+        return step1updateCount
+                .compose(count -> {
+                    if (count > 0) {
+                        return checkout2step2select(sqlConnection, queueName, pollerInstance);
+                    } else {
+                        return Future.succeededFuture(new ArrayList<>());
+                    }
+                }); // the caller has error log, so doesn't print error log here
+    }
+
+    private Future<Integer> checkout2step1update(SqlConnection sqlConnection, String queueName, int batchSize, Duration nextProcessDelay, String pollerInstance) {
+        long start = System.currentTimeMillis();
+        OffsetDateTime newNextProcessTime = OffsetDateTime.now().plusSeconds(nextProcessDelay.getSeconds());
+        return SqlTemplate.forUpdate(sqlConnection, SQL_CHECK_OUT_2_STEP1)
+                .execute(Map.of("now", OffsetDateTime.now(), "queueName", queueName, "batchSize", batchSize, "newNextProcessTime", newNextProcessTime, "pollerInstance", pollerInstance))
+                .map(SqlResult::rowCount)
+                .onSuccess(count -> log.info("checkout2step1update pollerInstance={}, step1updateCount={}, time={}ms", pollerInstance, count, System.currentTimeMillis() - start))
+                .onFailure(err -> log.error("task checkout2step1update failed: queue={}, pollerInstance={}, time={}ms", queueName, pollerInstance, System.currentTimeMillis() - start, err));
+    }
+
+    private Future<List<TaskEntity>> checkout2step2select(SqlConnection sqlConnection, String queueName, String pollerInstance) {
+        long start = System.currentTimeMillis();
+        return SqlTemplate.forQuery(sqlConnection, SQL_CHECK_OUT_2_STEP2)
+                .execute(Map.of("queueName", queueName, "pollerInstance", pollerInstance))
+                .onFailure(err -> log.error("task checkout2step2select failed: queue={}, pollerInstance={}, time={}ms", queueName, pollerInstance, System.currentTimeMillis() - start, err))
+                .map(rows -> {
+                    List<TaskEntity> records = new ArrayList<>();
+                    rows.forEach(row -> records.add(mapRowToTaskEntityForCheckout(row)));
+                    return records;
+                })
+                .onSuccess(list -> log.info("checkout2step2select pollerInstance={}, step2selectCount={}, time={}ms", pollerInstance, list.size(), System.currentTimeMillis() - start));
+    }
 
     Future<Integer> reenqueue(SqlConnection sqlConnection, Long taskId, Duration nextProcessDelay, String processResult) {
         long start = System.currentTimeMillis();
@@ -197,7 +254,7 @@ class TaskQueueRepo {
                 .referenceNumber(row.getString("REFERENCE_NUMBER"))
                 .queueName(row.getString("QUEUE_NAME"))
                 .status(TaskStatus.valueOf(row.getString("STATUS")))
-                .attempt(row.getLong("ATTEMPT") + 1L) // increase by 1, as it will be increased in the next step
+                .attempt(row.getLong("ATTEMPT"))
                 .createTime(row.getOffsetDateTime("CREATE_TIME"))
                 .nextProcessTime(row.getOffsetDateTime("NEXT_PROCESS_TIME"))
                 .lastUpdateTime(row.getOffsetDateTime("LAST_UPDATE_TIME"))

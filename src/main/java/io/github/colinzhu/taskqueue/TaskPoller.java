@@ -18,6 +18,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -32,6 +33,7 @@ public class TaskPoller<T> {
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     private String pollerId;
+    private String pollerInstance;
     private boolean isToStop = false;
     private boolean isStopped = true; // default is stopped, until start() is invoked
     private long timerId = -1;
@@ -39,7 +41,8 @@ public class TaskPoller<T> {
     private boolean isWaiting = false;
     public TaskPoller(Vertx vertx, JDBCPool pool, TaskPollerConfig<T> config) {
         this(vertx, pool, config, TaskQueueRepo.getInstance(), new TaskQueueServiceImpl(vertx, TaskQueueRepo.getInstance()));
-        pollerId = "poller-" + config.getQueueName() + "-" + Integer.toHexString(this.hashCode());
+        pollerInstance = UUID.randomUUID().toString();
+        pollerId = "poller-" + config.getQueueName() + "-" + pollerInstance;
         log.info("{} created: {}", pollerId, config);
 
         String eventBusAddress = "poller." + config.getQueueName();
@@ -115,7 +118,7 @@ public class TaskPoller<T> {
     }
 
     private Future<List<TaskEntity>> checkOutTasks(SqlConnection sqlConnection) {
-        return taskQueueRepo.checkout(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay());
+        return taskQueueRepo.checkout2(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay(), pollerInstance);
     }
 
     private void handleFetchedTasks(List<TaskEntity> batch, String pollId, long start) {
@@ -181,7 +184,7 @@ public class TaskPoller<T> {
                 .compose(tTask -> vertx.eventBus().request(taskEntity.getQueueName(), tTask, new DeliveryOptions().setSendTimeout(config.getTimeout().toMillis())))
                 .onSuccess(res -> log.info("{} task processed successfully, taskId={}, response={}", pollerId, taskEntity.getId(), res.body()))
                 .recover(err -> {
-                    log.error("{} error occurred, taskId={}, will try to update task status to ERROR.", pollerId, taskEntity.getId(), err);
+                    log.error("{} error processing task, taskId={}, will try to update task status to ERROR.", pollerId, taskEntity.getId(), err);
                     // for recover to mark the task as ERROR, it needs to be in a separate connection
                     return pool.withConnection(conn -> taskQueueServiceImpl.fail(conn, taskEntity.getId(), getStackTrace(err)).compose(count -> Future.succeededFuture()));
                 });

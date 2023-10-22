@@ -111,11 +111,12 @@ CREATE TABLE TASKS (
   PAYLOAD CLOB,
   PROCESS_RESULT VARCHAR2(4000),
   CREATE_TIME TIMESTAMP with TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  POLLER_INSTANCE VARCHAR2(200),
   NEXT_PROCESS_TIME   TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   LAST_UPDATE_TIME   TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT UC_TASK UNIQUE (REFERENCE_NUMBER,QUEUE_NAME)
 );
-CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
+CREATE INDEX IDX_QNM_ST_NXT_PROC_TM ON TASKS(QUEUE_NAME, STATUS, NEXT_PROCESS_TIME);
 ```
 
 ## TODO
@@ -164,7 +165,10 @@ CREATE INDEX IDX_QNAME_NEXT_PROC_TIME ON TASKS(QUEUE_NAME, NEXT_PROCESS_TIME);
 - [x] 2023-10-21 support storing process result for reenqueue case
 - [x] 2023-10-21 support unique task - add unique key for queueName + referenceNumber
 - [x] 2023-10-21 add example to implement retry by using requeue feature
-- [ ] change checkout implementation, doesn't lock records to prevent records being locked by zombie connections
+- [x] 2023-10-22 add another checkout implementation, doesn't lock records to prevent records being locked by zombie connections
+- [x] 2023-10-22 add retry for update task status, in case DB exception at that time
+- [ ] study and draw the new checkout impl
+- [ ] study the UUID poller instance impact
 - [ ] micrometer - create_time -> delete_time, checkout_time -> delete_time
 - [ ] change support UI layout - swap row and column
 - [ ] consider to change task ID from long to UUID

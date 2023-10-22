@@ -45,6 +45,7 @@ async function showListTable() {
             { title: "status", field: "status" },
             { title: "attempt", field: "attempt", hozAlign: "right", sorter: "number" },
             { title: "createTime", field: "createTime" },
+            { title: "pollerInstance", field: "pollerInstance" },
             { title: "nextProcessTime", field: "nextProcessTime" },
             { title: "lastUpdateTime", field: "lastUpdateTime" },
             { title: "payload", field: "payload" },
