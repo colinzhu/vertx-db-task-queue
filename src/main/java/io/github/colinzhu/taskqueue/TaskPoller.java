@@ -8,7 +8,6 @@ import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.jdbcclient.JDBCPool;
-import io.vertx.sqlclient.SqlConnection;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -103,7 +103,7 @@ public class TaskPoller<T> {
         isStopped = false;
         long start = System.currentTimeMillis();
         String pollId = pollerId + "-" + start;
-        pool.withTransaction(this::checkOutTasks)
+        checkOutTasks2()
                 .onSuccess(batch -> {
                     if (batch.isEmpty()) {
                         log.debug("{} tasks fetched, size=0. Time:{}ms. Fetch again in {}", pollId, System.currentTimeMillis() - start, config.getNoTaskPollInterval());
@@ -117,8 +117,21 @@ public class TaskPoller<T> {
                 });
     }
 
-    private Future<List<TaskEntity>> checkOutTasks(SqlConnection sqlConnection) {
-        return taskQueueRepo.checkout2(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay(), pollerInstance);
+    private Future<List<TaskEntity>> checkOutTasks() {
+        return pool.withTransaction(sqlConnection -> taskQueueRepo.checkout(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay()));
+    }
+
+    private Future<List<TaskEntity>> checkOutTasks2() {
+        // 'update' and 'select' are in 2 different connections, not in one transaction
+        var step1updateCount = pool.withConnection(sqlConnection -> taskQueueRepo.checkout2step1update(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay(), pollerInstance));
+        return step1updateCount
+                .compose(count -> {
+                    if (count > 0) {
+                        return pool.withConnection(sqlConnection -> taskQueueRepo.checkout2step2select(sqlConnection, config.getQueueName(), pollerInstance));
+                    } else {
+                        return Future.succeededFuture(new ArrayList<>());
+                    }
+                }); // the caller has error log, so doesn't print error log here
     }
 
     private void handleFetchedTasks(List<TaskEntity> batch, String pollId, long start) {

@@ -50,6 +50,48 @@ Here are the steps to run the `ExampleApp`.
   3. mark the ERROR tasks as POISON, or mark POISON back to ERROR
   4. delete POISON tasks
 
+## Key Design
+How does multiple pollers fetch same tasks from same queue without conflict? There are 2 approaches:
+- Approach 1: select tasks for update skip locked -> update conditions so that the tasks will not be selected by another instance
+- Approach 2: all instances try to update tasks, if they try to update the same tasks, one will succeed, the others will fail with update count 0 ->  select the updated tasks
+  - For example, initial state like this:
+
+    | ID | Queue | Status     | Poller Instance | Next Process Time | Remark                                                                                                  |
+    |----|-------|------------|-----------------|-------------------|---------------------------------------------------------------------------------------------------------|
+    | 1  | A     | CREATED    |                 | now               | will be checked out now                                                                                 |
+    | 2  | A     | CREATED    |                 | now - 3sec        | will be checked out now                                                                                 |
+    | 3  | A     | PROCESSING | 222             | now - 3sec        | will be checked out now, though it's marked with poller '222', but the next process time already passed |
+    | 4  | A     | PROCESSING | 111             | 15 mins later     | being processed by '111'                                                                                |
+    | 5  | B     | CREATED    |                 |                   |                                                                                                         |
+  
+  - now update with below SQL, it will be:
+    ``` oracle-sql
+    UPDATE TASKS SET 
+      ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', POLLER_INSTANCE = #{pollerInstance}, NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} 
+    WHERE 
+      (ID, LAST_UPDATE_TIME) IN (
+        (SELECT ID, LAST_UPDATE_TIME FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING')
+        AND QUEUE_NAME = #{queueName} 
+        AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY)
+      )
+      AND NEXT_PROCESS_TIME <= #{now}  
+    ```
+    | ID | Queue | Status     | Poller Instance | Next Process Time | Remark               |
+    |----|-------|------------|-----------------|-------------------|----------------------|
+    | 1  | A     | PROCESSING | 333             | 15 mins later     | checked out by '333' |
+    | 2  | A     | PROCESSING | 333             | 15 mins later     | checked out by '333' |
+    | 3  | A     | PROCESSING | 333             | 15 mins later     | checked out by '333' |
+    | 4  | A     | PROCESSING | 111             | 15 mins later     | checked out by '111' |
+    | 5  | B     | CREATED    |                 |                   |                      |
+  - then select with SQL
+    ```oracle-sql
+    SELECT * FROM TASKS 
+    WHERE 
+      STATUS = 'PROCESSING' 
+      AND QUEUE_NAME = #{queueName} 
+      AND POLLER_INSTANCE = #{pollerInstance} 
+      AND NEXT_PROCESS_TIME > #{now}
+  ```
 ## Usage
 Enqueue a task - `TaskQueueService.enqueue()`
 
@@ -167,6 +209,7 @@ CREATE INDEX IDX_QNM_ST_NXT_PROC_TM ON TASKS(QUEUE_NAME, STATUS, NEXT_PROCESS_TI
 - [x] 2023-10-21 add example to implement retry by using requeue feature
 - [x] 2023-10-22 add another checkout implementation, doesn't lock records to prevent records being locked by zombie connections
 - [x] 2023-10-22 add retry for update task status, in case DB exception at that time
+- [x] 2023-10-23 for checkout2 implementation, split 'update' and 'select' into to connections instead of one transaction
 - [ ] study and draw the new checkout impl
 - [ ] study the UUID poller instance impact
 - [ ] micrometer - create_time -> delete_time, checkout_time -> delete_time
