@@ -8,19 +8,24 @@ import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.SqlConnection;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.random.RandomGenerator;
 
 @Slf4j
-@RequiredArgsConstructor
 public class PaymentReleaseTaskProcessor implements Function<Task<Payment>, Future<?>> {
     private final Vertx vertx;
-    private final JDBCPool pool;
     private final TaskQueueService taskQueueService;
+    private final JDBCPool pool;
+
+    public PaymentReleaseTaskProcessor(Vertx vertx, Supplier<JDBCPool> poolSupplier, TaskQueueService taskQueueService) {
+        this.vertx = vertx;
+        this.taskQueueService = taskQueueService;
+        this.pool = poolSupplier.get();
+    }
 
     @Override
     public Future<Integer> apply(Task<Payment> task) {

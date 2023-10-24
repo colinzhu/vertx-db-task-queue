@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import static org.slf4j.Logger.ROOT_LOGGER_NAME;
 
@@ -40,15 +41,14 @@ public class ExampleApp {
     }
 
     private static void deployVerticles(Vertx vertx, JDBCPool pool) {
+        Supplier<JDBCPool> poolSupplier = () -> Database.get(Database.H2).getJdbcPool(vertx);
         TaskPollerConfig<Payment> taskPollerCheckConfig = new TaskPollerConfig<>("payment.check", Payment.class).setBatchSize(50);
         TaskPollerConfig<Payment> taskPollerReleaseConfig = new TaskPollerConfig<>("payment.release", Payment.class).setBatchSize(50);
-        PaymentCheckTaskProcessor paymentCheckTaskProcessor = new PaymentCheckTaskProcessor(vertx, pool, TaskQueueService.taskQueue(vertx));
-        PaymentReleaseTaskProcessor paymentReleaseTaskProcessor = new PaymentReleaseTaskProcessor(vertx, pool, TaskQueueService.taskQueue(vertx));
 
-        vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerCheckConfig.getQueueName(), paymentCheckTaskProcessor), new DeploymentOptions().setInstances(1))
-                .compose(any -> vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerReleaseConfig.getQueueName(), paymentReleaseTaskProcessor), new DeploymentOptions().setInstances(1)))
-                .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerCheckConfig), new DeploymentOptions().setInstances(1)))
-                .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerReleaseConfig), new DeploymentOptions().setInstances(1)))
+        vertx.deployVerticle(new TaskProcessorVerticle<>(taskPollerCheckConfig.getQueueName(), () -> new PaymentCheckTaskProcessor(vertx, poolSupplier, TaskQueueService.taskQueue(vertx))))
+                .compose(any -> vertx.deployVerticle(new TaskProcessorVerticle<>(taskPollerReleaseConfig.getQueueName(), () -> new PaymentReleaseTaskProcessor(vertx, poolSupplier, TaskQueueService.taskQueue(vertx)))))
+                .compose(any -> vertx.deployVerticle(new TaskPollerVerticle<>(poolSupplier, taskPollerCheckConfig)))
+                .compose(any -> vertx.deployVerticle(new TaskPollerVerticle<>(poolSupplier, taskPollerReleaseConfig)))
                 .compose(any -> vertx.deployVerticle(() -> new WebVerticle(pool), new DeploymentOptions().setInstances(2)))
                 .onFailure(err -> log.error("error", err));
     }
@@ -59,7 +59,7 @@ public class ExampleApp {
                     final AtomicBoolean stopCompleted = new AtomicBoolean(false);
                     vertx.close(ar -> stopCompleted.set(true));
 
-                    int maxSeconds = 10;
+                    int maxSeconds = 20;
                     int seconds = 0;
                     while (!stopCompleted.get()) {
                         seconds++;
@@ -69,6 +69,7 @@ public class ExampleApp {
                             throw new RuntimeException(e);
                         }
                         if (seconds >= maxSeconds) {
+                            System.out.println("Reached maxSeconds=" + maxSeconds + ", stopped immediately");
                             break;
                         }
                     }

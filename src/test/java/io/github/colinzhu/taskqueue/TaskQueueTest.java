@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static io.github.colinzhu.taskqueue.TaskStatus.COMPLETED;
 import static io.github.colinzhu.taskqueue.TaskStatus.CREATED;
@@ -30,6 +31,7 @@ import static org.slf4j.Logger.ROOT_LOGGER_NAME;
 @Slf4j
 class TaskQueueTest {
     private static JDBCPool pool;
+    private static Supplier<JDBCPool> poolSupplier;
     private static TaskQueueService taskQueueService;
 
     @BeforeAll
@@ -44,6 +46,7 @@ class TaskQueueTest {
         Database db = Database.get(Database.H2_MEM);
         pool = db.getJdbcPool(vertx);
         db.createTables(pool).onComplete(ar -> testContext.completeNow());
+        poolSupplier = () -> db.getJdbcPool(vertx);
     }
 
     private static void setLogLevel(String logger, Level level) {
@@ -90,8 +93,8 @@ class TaskQueueTest {
                 .setNoTaskPollInterval(Duration.ofMillis(500)); // make sure it's smaller then the waiting time in verification
 
         // deploy TaskPollerVerticle and TaskProcessorVerticle
-        Future<String> deployVerticles = vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerConfig.getQueueName(), taskProcessor), new DeploymentOptions().setInstances(1))
-                .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerConfig), new DeploymentOptions().setInstances(1)));
+        Future<String> deployVerticles = vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerConfig.getQueueName(), () -> taskProcessor), new DeploymentOptions().setInstances(1))
+                .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(poolSupplier, taskPollerConfig), new DeploymentOptions().setInstances(1)));
 
         // enqueue a task
         log.info("Payment created: {}", payment);
@@ -154,8 +157,8 @@ class TaskQueueTest {
                 .setNoTaskPollInterval(Duration.ofMillis(500)); // make sure it's smaller then the waiting time in verification
 
         // deploy TaskPollerVerticle and TaskProcessorVerticle
-        Future<String> deployVerticles = vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerConfig.getQueueName(), taskProcessor), new DeploymentOptions().setInstances(1))
-                .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerConfig), new DeploymentOptions().setInstances(1)));
+        Future<String> deployVerticles = vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerConfig.getQueueName(), () -> taskProcessor), new DeploymentOptions().setInstances(1))
+                .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(poolSupplier, taskPollerConfig), new DeploymentOptions().setInstances(1)));
 
         // enqueue a task
         Future<Long> enqueueTask = deployVerticles.compose(any -> pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p))));
@@ -199,8 +202,8 @@ class TaskQueueTest {
                 .setNoTaskPollInterval(Duration.ofMillis(500));  // make sure it's smaller then the waiting time in verification
 
         // deploy TaskPollerVerticle and TaskProcessorVerticle
-        TaskPollerVerticle<Payment> pollerVerticle = new TaskPollerVerticle<>(pool, taskPollerConfig);
-        Future<String> deployVerticles = vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerConfig.getQueueName(), taskProcessor), new DeploymentOptions().setInstances(1))
+        TaskPollerVerticle<Payment> pollerVerticle = new TaskPollerVerticle<>(poolSupplier, taskPollerConfig);
+        Future<String> deployVerticles = vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerConfig.getQueueName(), () -> taskProcessor), new DeploymentOptions().setInstances(1))
                 .compose(any -> vertx.deployVerticle(pollerVerticle));
 
         deployVerticles.onSuccess(any -> {
@@ -265,8 +268,8 @@ class TaskQueueTest {
                 .setNoTaskPollInterval(Duration.ofMillis(500));  // make sure it's smaller then the waiting time in verification
 
         // deploy TaskPollerVerticle and TaskProcessorVerticle
-        Future<String> deployVerticles = vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerConfig.getQueueName(), taskProcessor), new DeploymentOptions().setInstances(1))
-                .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerConfig), new DeploymentOptions().setInstances(1)));
+        Future<String> deployVerticles = vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerConfig.getQueueName(), () -> taskProcessor), new DeploymentOptions().setInstances(1))
+                .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(poolSupplier, taskPollerConfig), new DeploymentOptions().setInstances(1)));
 
         // enqueue a task
         Future<Long> enqueueTask = deployVerticles.compose(any -> pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p))));

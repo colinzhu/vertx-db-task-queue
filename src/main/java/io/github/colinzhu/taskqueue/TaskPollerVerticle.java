@@ -7,26 +7,27 @@ import io.vertx.jdbcclient.JDBCPool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.function.Supplier;
+
 @Slf4j
 @RequiredArgsConstructor
 public class TaskPollerVerticle<T> extends AbstractVerticle {
-    private final JDBCPool pool;
+    private final Supplier<JDBCPool> poolSupplier;
     private final TaskPollerConfig<T> config;
     private TaskPoller<T> poller;
-    private String logId;
 
     @Override
     public void start() {
-        logId = "taskPollerVerticle-" + config.getQueueName() + "-" + Integer.toHexString(this.hashCode());
-        poller = new TaskPoller<>(vertx, pool, config);
+        // make sure the pool instance is created by verticle itself, not a shared instance created by another component
+        poller = new TaskPoller<>(vertx, poolSupplier.get(), config);
         poller.start();
-        log.info("{} created", logId);
+        log.info("{} created", this);
     }
 
     @Override
     public void stop(Promise<Void> stopPromise) {
-        log.info("{} stopping", logId);
-        poller.stop().onSuccess(v -> stopPromise.complete()).onSuccess(v -> log.info("{} stopped", logId));
+        log.info("{} stopping", this);
+        poller.stop().onSuccess(v -> stopPromise.complete()).onSuccess(v -> log.info("{} stopped", this));
     }
 
     public void startPoller() {
@@ -35,5 +36,10 @@ public class TaskPollerVerticle<T> extends AbstractVerticle {
 
     public Future<Void> stopPoller() {
         return poller.stop();
+    }
+
+    @Override
+    public String toString() {
+        return this.getClass().getSimpleName() + "-" + config.getQueueName() + "-" + Integer.toHexString(hashCode());
     }
 }

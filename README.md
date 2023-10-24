@@ -210,6 +210,7 @@ CREATE INDEX IDX_QNM_ST_NXT_PROC_TM ON TASKS(QUEUE_NAME, STATUS, NEXT_PROCESS_TI
 - [x] 2023-10-22 add another checkout implementation, doesn't lock records to prevent records being locked by zombie connections
 - [x] 2023-10-22 add retry for update task status, in case DB exception at that time
 - [x] 2023-10-23 for checkout2 implementation, split 'update' and 'select' into to connections instead of one transaction
+- [x] 2023-10-24 JDBCPool should only be created by verticle itself, if it's created by another component, it can be shutdown first by another component
 - [ ] study and draw the new checkout impl
 - [ ] study the UUID poller instance impact
 - [ ] micrometer - create_time -> delete_time, checkout_time -> delete_time
