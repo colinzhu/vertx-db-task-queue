@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.Accessors;
 
 import java.time.Duration;
+import java.util.function.Supplier;
 
 @RequiredArgsConstructor
 @Data
@@ -21,4 +22,5 @@ public class TaskPollerConfig<T> {
     private Duration errorProcessTasksInterval = Duration.ofSeconds(10);
     private Duration errorCheckOutInterval = Duration.ofSeconds(60);
     private boolean pollNextBatch = true;
+    private Supplier<Boolean> toStartPoller = () -> Boolean.TRUE;
 }

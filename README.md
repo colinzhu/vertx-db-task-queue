@@ -211,8 +211,13 @@ CREATE INDEX IDX_QNM_ST_NXT_PROC_TM ON TASKS(QUEUE_NAME, STATUS, NEXT_PROCESS_TI
 - [x] 2023-10-22 add retry for update task status, in case DB exception at that time
 - [x] 2023-10-23 for checkout2 implementation, split 'update' and 'select' into to connections instead of one transaction
 - [x] 2023-10-24 JDBCPool should only be created by verticle itself, if it's created by another component, it can be shutdown first by another component
-- [ ] study and draw the new checkout impl
+- [x] 2023-10-24 study and draw the new checkout impl
+- [x] 2023-10-25 support parameter to control poller to start or not when verticle is deployed
+- [x] 2023-10-25 support start and stop poller via event bus and support API
 - [ ] study the UUID poller instance impact
+- [ ] enhance DB error retry logic
+- [ ] support start and stop poller from support web page
+- [ ] integrate with 'workflow engine'
 - [ ] micrometer - create_time -> delete_time, checkout_time -> delete_time
 - [ ] change support UI layout - swap row and column
 - [ ] consider to change task ID from long to UUID

@@ -42,8 +42,8 @@ public class ExampleApp {
 
     private static void deployVerticles(Vertx vertx, JDBCPool pool) {
         Supplier<JDBCPool> poolSupplier = () -> Database.get(Database.H2).getJdbcPool(vertx);
-        TaskPollerConfig<Payment> taskPollerCheckConfig = new TaskPollerConfig<>("payment.check", Payment.class).setBatchSize(50);
-        TaskPollerConfig<Payment> taskPollerReleaseConfig = new TaskPollerConfig<>("payment.release", Payment.class).setBatchSize(50);
+        TaskPollerConfig<Payment> taskPollerCheckConfig = new TaskPollerConfig<>("payment.check", Payment.class).setBatchSize(20);
+        TaskPollerConfig<Payment> taskPollerReleaseConfig = new TaskPollerConfig<>("payment.release", Payment.class).setBatchSize(20);
 
         vertx.deployVerticle(new TaskProcessorVerticle<>(taskPollerCheckConfig.getQueueName(), () -> new PaymentCheckTaskProcessor(vertx, poolSupplier, TaskQueueService.taskQueue(vertx))))
                 .compose(any -> vertx.deployVerticle(new TaskProcessorVerticle<>(taskPollerReleaseConfig.getQueueName(), () -> new PaymentReleaseTaskProcessor(vertx, poolSupplier, TaskQueueService.taskQueue(vertx)))))

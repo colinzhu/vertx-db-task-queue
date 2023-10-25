@@ -20,7 +20,15 @@ public class TaskPollerVerticle<T> extends AbstractVerticle {
     public void start() {
         // make sure the pool instance is created by verticle itself, not a shared instance created by another component
         poller = new TaskPoller<>(vertx, poolSupplier.get(), config);
-        poller.start();
+        if (config.getToStartPoller().get()) {
+            log.info("{} toStartPoller=true, will start the poller", this);
+            poller.start();
+        } else {
+            log.info("{} toStartPoller=false, will NOT start the poller", this);
+        }
+
+        vertx.eventBus().consumer("taskqueue.poller.pause." + config.getQueueName(), msg -> poller.stop().onSuccess(v -> log.info("{} paused", this)));
+        vertx.eventBus().consumer("taskqueue.poller.start." + config.getQueueName(), msg -> { poller.start(); log.info("{} started", this); });
         log.info("{} created", this);
     }
 
@@ -30,10 +38,7 @@ public class TaskPollerVerticle<T> extends AbstractVerticle {
         poller.stop().onSuccess(v -> stopPromise.complete()).onSuccess(v -> log.info("{} stopped", this));
     }
 
-    public void startPoller() {
-        poller.start();
-    }
-
+    @Deprecated
     public Future<Void> stopPoller() {
         return poller.stop();
     }

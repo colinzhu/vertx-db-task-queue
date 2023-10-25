@@ -44,6 +44,8 @@ public class TaskQueueSupportHandler implements Supplier<Router> {
         router.route("/support/api/housekeep-poison").handler(this::housekeepPoison);
         router.route("/support/api/search/:queueName/:status").handler(this::search);
         router.route("/support/api/count").handler(this::count);
+        router.route("/support/api/poller-pause/:queueName").handler(this::pollerPause);
+        router.route("/support/api/poller-start/:queueName").handler(this::pollerStart);
         return router;
     }
 
@@ -107,4 +109,15 @@ public class TaskQueueSupportHandler implements Supplier<Router> {
                 .onFailure(err -> routingContext.fail(500, err));
     }
 
+    private void pollerPause(RoutingContext routingContext) {
+        String queueName = routingContext.pathParam("queueName");
+        vertx.eventBus().publish("taskqueue.poller.pause." + queueName, queueName); // 'publish' instead of 'request' to reduce dependency
+        routingContext.response().end(Json.encode("paused request sent for: " + queueName));
+    }
+
+    private void pollerStart(RoutingContext routingContext) {
+        String queueName = routingContext.pathParam("queueName");
+        vertx.eventBus().publish("taskqueue.poller.start." + queueName, queueName); // 'publish' instead of 'request' to reduce dependency
+        routingContext.response().end(Json.encode("start request sent for: " + queueName));
+    }
 }
