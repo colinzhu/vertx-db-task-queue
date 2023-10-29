@@ -3,11 +3,14 @@ package io.github.colinzhu.taskqueue;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.jdbcclient.JDBCPool;
+import io.vertx.micrometer.backends.BackendRegistries;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +22,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -39,11 +43,13 @@ public class TaskPoller<T> {
     private long timerId = -1;
     private boolean isNoTaskWaitingForTimer = false;
     private boolean isWaiting = false;
+
+    private MeterRegistry registry;
+
     public TaskPoller(Vertx vertx, JDBCPool pool, TaskPollerConfig<T> config) {
         this(vertx, pool, config, TaskQueueRepo.getInstance(), new TaskQueueServiceImpl(vertx, TaskQueueRepo.getInstance()));
         pollerInstance = UUID.randomUUID().toString();
         pollerId = "poller-" + config.getQueueName() + "-" + pollerInstance;
-        log.info("{} created: {}", pollerId, config);
 
         String eventBusAddress = "poller." + config.getQueueName();
         vertx.eventBus().consumer(eventBusAddress, message -> {
@@ -56,6 +62,9 @@ public class TaskPoller<T> {
                 log.debug("{} new task notification received, ignored, taskId={}, because it's not no task and waiting for the timer, isStopped={}", pollerId, message.body(), isStopped);
             }
         });
+
+        registry = BackendRegistries.getDefaultNow();
+        log.info("{} created: {}", pollerId, config);
     }
 
     public void start() {
@@ -105,13 +114,17 @@ public class TaskPoller<T> {
         String pollId = pollerId + "-" + start;
         checkOutTasks2()
                 .onSuccess(batch -> {
+                    long end = System.currentTimeMillis();
+                    metricTimer("fetch", "result", "success").record(end - start, TimeUnit.MILLISECONDS);
                     if (batch.isEmpty()) {
-                        log.debug("{} tasks fetched, size=0. Time:{}ms. Fetch again in {}", pollId, System.currentTimeMillis() - start, config.getNoTaskPollInterval());
+                        log.debug("{} tasks fetched, size=0. Time:{}ms. Fetch again in {}", pollId, end - start, config.getNoTaskPollInterval());
                         rerunWithDelayIfNecessary(config.getNoTaskPollInterval(), true);
                     } else {
                         handleFetchedTasks(batch, pollId, start);
                     }
                 }).onFailure(e -> {
+                    long end = System.currentTimeMillis();
+                    metricTimer("fetch", "result", "failure").record(end - start, TimeUnit.MILLISECONDS);
                     log.error("{} failed to fetch tasks, retry in {}", pollId, config.getErrorCheckOutInterval(), e);
                     rerunWithDelayIfNecessary(config.getErrorCheckOutInterval());
                 });
@@ -207,5 +220,9 @@ public class TaskPoller<T> {
         StringWriter sw = new StringWriter();
         t.printStackTrace(new PrintWriter(sw));
         return sw.toString();
+    }
+
+    private Timer metricTimer(String name, String... tags) {
+        return Timer.builder("taskqueue.poller." + name).tags("queue",config.getQueueName()).tags(tags).register(registry);
     }
 }

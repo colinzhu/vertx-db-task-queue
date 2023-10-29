@@ -5,9 +5,18 @@ import ch.qos.logback.classic.Logger;
 import io.github.colinzhu.taskqueue.*;
 import io.github.colinzhu.taskqueue.example.check.PaymentCheckTaskProcessor;
 import io.github.colinzhu.taskqueue.example.release.PaymentReleaseTaskProcessor;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.jvm.ClassLoaderMetrics;
+import io.micrometer.core.instrument.binder.jvm.JvmMemoryMetrics;
+import io.micrometer.core.instrument.binder.jvm.JvmThreadMetrics;
+import io.micrometer.core.instrument.binder.system.ProcessorMetrics;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Vertx;
+import io.vertx.core.VertxOptions;
 import io.vertx.jdbcclient.JDBCPool;
+import io.vertx.micrometer.MicrometerMetricsOptions;
+import io.vertx.micrometer.VertxInfluxDbOptions;
+import io.vertx.micrometer.backends.BackendRegistries;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
@@ -28,7 +37,19 @@ public class ExampleApp {
         setLogLevel("io.github.colinzhu.taskqueue.TaskPoller", Level.DEBUG);
         setLogLevel("io.github.colinzhu.taskqueue.TaskQueueRepo", Level.DEBUG);
 
-        Vertx vertx = Vertx.vertx();
+        MicrometerMetricsOptions options = new MicrometerMetricsOptions()
+                .setInfluxDbOptions(new VertxInfluxDbOptions().setEnabled(true))
+                .setEnabled(true);
+
+        Vertx vertx = Vertx.vertx(new VertxOptions().setMetricsOptions(options));
+        MeterRegistry registry = BackendRegistries.getDefaultNow();
+
+        new ClassLoaderMetrics().bindTo(registry);
+        new JvmMemoryMetrics().bindTo(registry);
+        new ProcessorMetrics().bindTo(registry);
+        new JvmThreadMetrics().bindTo(registry);
+
+
         Database db = Database.get(Database.H2);
         db.startServer();
 
