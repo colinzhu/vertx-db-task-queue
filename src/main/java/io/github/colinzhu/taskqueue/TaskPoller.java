@@ -3,14 +3,11 @@ package io.github.colinzhu.taskqueue;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.jdbcclient.JDBCPool;
-import io.vertx.micrometer.backends.BackendRegistries;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +32,7 @@ public class TaskPoller<T> {
     private final TaskQueueRepo taskQueueRepo;
     private final TaskQueueServiceImpl taskQueueServiceImpl;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    private final TaskQueueMetrics metrics = new TaskQueueMetrics();
 
     private String pollerId;
     private String pollerInstance;
@@ -43,8 +41,6 @@ public class TaskPoller<T> {
     private long timerId = -1;
     private boolean isNoTaskWaitingForTimer = false;
     private boolean isWaiting = false;
-
-    private MeterRegistry registry;
 
     public TaskPoller(Vertx vertx, JDBCPool pool, TaskPollerConfig<T> config) {
         this(vertx, pool, config, TaskQueueRepo.getInstance(), new TaskQueueServiceImpl(vertx, TaskQueueRepo.getInstance()));
@@ -63,7 +59,6 @@ public class TaskPoller<T> {
             }
         });
 
-        registry = BackendRegistries.getDefaultNow();
         log.info("{} created: {}", pollerId, config);
     }
 
@@ -115,7 +110,7 @@ public class TaskPoller<T> {
         checkOutTasks2()
                 .onSuccess(batch -> {
                     long end = System.currentTimeMillis();
-                    metricTimer("fetch", "result", "success").record(end - start, TimeUnit.MILLISECONDS);
+                    metrics.pollerTimer("fetch", config.getQueueName(), "result", "success").record(end - start, TimeUnit.MILLISECONDS);
                     if (batch.isEmpty()) {
                         log.debug("{} tasks fetched, size=0. Time:{}ms. Fetch again in {}", pollId, end - start, config.getNoTaskPollInterval());
                         rerunWithDelayIfNecessary(config.getNoTaskPollInterval(), true);
@@ -124,7 +119,7 @@ public class TaskPoller<T> {
                     }
                 }).onFailure(e -> {
                     long end = System.currentTimeMillis();
-                    metricTimer("fetch", "result", "failure").record(end - start, TimeUnit.MILLISECONDS);
+                    metrics.pollerTimer("fetch", config.getQueueName(), "result", "failure").record(end - start, TimeUnit.MILLISECONDS);
                     log.error("{} failed to fetch tasks, retry in {}", pollId, config.getErrorCheckOutInterval(), e);
                     rerunWithDelayIfNecessary(config.getErrorCheckOutInterval());
                 });
@@ -147,23 +142,28 @@ public class TaskPoller<T> {
                 }); // the caller has error log, so doesn't print error log here
     }
 
-    private void handleFetchedTasks(List<TaskEntity> batch, String pollId, long start) {
+    private void handleFetchedTasks(List<TaskEntity> batch, String pollId, long fetchStart) {
         List<Long> taskIdList = batch.stream().map(TaskEntity::getId).collect(Collectors.toList());
         List<String> refNumberList = batch.stream().map(TaskEntity::getReferenceNumber).collect(Collectors.toList());
         String logTasks = "size=%d, taskIdList=%s, refList=%s".formatted(batch.size(), taskIdList, refNumberList);
-        log.debug("{} tasks fetched, {} Time:{}ms", pollId, logTasks, System.currentTimeMillis() - start);
+        log.debug("{} tasks fetched, {} Time:{}ms", pollId, logTasks, System.currentTimeMillis() - fetchStart);
+
         long processStart = System.currentTimeMillis();
         List<Future<?>> futures = batch.stream().map(this::processTask).collect(Collectors.toList());
         Future.join(futures).onSuccess(event -> {
             long end = System.currentTimeMillis();
-            log.info("{} tasks processed, {}, Fetch and process time:{}ms, fetch time:{}ms, process time:{}ms", pollId, logTasks, end - start, processStart - start, end - processStart);
+            metrics.pollerTimer("process.batch", config.getQueueName(), "result", "success").record(end - processStart, TimeUnit.MILLISECONDS);
+            log.info("{} tasks processed, {}, Fetch and process time:{}ms, fetch time:{}ms, process time:{}ms", pollId, logTasks, end - fetchStart, processStart - fetchStart, end - processStart);
             rerunWithDelayIfNecessary(config.getHasTaskPollInterval());
         }).onFailure(e -> {
             // all task should be processed successfully or recovered (marked as ERROR), this is only a safety net e.g. not able to mark task as ERROR into DB
+            long end = System.currentTimeMillis();
+            metrics.pollerTimer("process.batch", config.getQueueName(), "result", "failure").record(end - processStart, TimeUnit.MILLISECONDS);
             log.error("{} {}, at least one item failed (even unable to mark as ERROR).", pollId, logTasks, e);
             rerunWithDelayIfNecessary(config.getErrorProcessTasksInterval());
         });
     }
+
     private void rerunWithDelayIfNecessary(Duration delay) {
         rerunWithDelayIfNecessary(delay, false);
     }
@@ -204,15 +204,24 @@ public class TaskPoller<T> {
     }
 
     private Future<?> processTask(TaskEntity taskEntity) {
+        long start = System.currentTimeMillis();
         return Future.succeededFuture()
                 .map(res -> convertTask(taskEntity))
 //                .compose(tTask -> config.getTaskProcessor().apply(tTask))
                 .compose(tTask -> vertx.eventBus().request(taskEntity.getQueueName(), tTask, new DeliveryOptions().setSendTimeout(config.getTimeout().toMillis())))
-                .onSuccess(res -> log.info("{} task processed successfully, taskId={}, response={}", pollerId, taskEntity.getId(), res.body()))
+                .onSuccess(res -> {
+                    long end = System.currentTimeMillis();
+                    metrics.pollerTimer("process.single", config.getQueueName(), "result", "success").record(end - start, TimeUnit.MILLISECONDS);
+                    log.info("{} task processed successfully, taskId={}, time={}ms, response={}", pollerId, taskEntity.getId(), end - start, res.body());
+                })
                 .recover(err -> {
                     log.error("{} error processing task, taskId={}, will try to update task status to ERROR.", pollerId, taskEntity.getId(), err);
                     // for recover to mark the task as ERROR, it needs to be in a separate connection
-                    return pool.withConnection(conn -> taskQueueServiceImpl.fail(conn, taskEntity.getId(), getStackTrace(err)).compose(count -> Future.succeededFuture()));
+                    return pool.withConnection(conn -> taskQueueServiceImpl.fail(conn, taskEntity.getId(), getStackTrace(err)).compose(count -> {
+                        long end = System.currentTimeMillis();
+                        metrics.pollerTimer("process.single", config.getQueueName(), "result", "recovered").record(end - start, TimeUnit.MILLISECONDS);
+                        return Future.succeededFuture();
+                    }));
                 });
     }
 
@@ -220,9 +229,5 @@ public class TaskPoller<T> {
         StringWriter sw = new StringWriter();
         t.printStackTrace(new PrintWriter(sw));
         return sw.toString();
-    }
-
-    private Timer metricTimer(String name, String... tags) {
-        return Timer.builder("taskqueue.poller." + name).tags("queue",config.getQueueName()).tags(tags).register(registry);
     }
 }

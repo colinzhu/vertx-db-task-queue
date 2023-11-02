@@ -1,0 +1,4 @@
+target/
+.idea/
+src/main/resources/io/github/colinzhu/taskqueue/web/lib/
+*.db
