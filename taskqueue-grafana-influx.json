@@ -27,10 +27,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": {
-        "type": "influxdb",
-        "uid": "f809eeca-3002-48f9-ab92-98a7222ab001"
-      },
+      "datasource": {},
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -156,10 +153,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": {
-        "type": "influxdb",
-        "uid": "f809eeca-3002-48f9-ab92-98a7222ab001"
-      },
+      "datasource": {},
       "fieldConfig": {
         "defaults": {
           "unit": "ms"
@@ -280,10 +274,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": {
-        "type": "influxdb",
-        "uid": "f809eeca-3002-48f9-ab92-98a7222ab001"
-      },
+      "datasource": {},
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -409,10 +400,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": {
-        "type": "influxdb",
-        "uid": "f809eeca-3002-48f9-ab92-98a7222ab001"
-      },
+      "datasource": {},
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -536,6 +524,514 @@
       "dashes": false,
       "datasource": {
         "type": "influxdb",
+        "uid": "dcd61d0b-8946-4970-a7a1-1cc47f42abf1"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "hiddenSeries": false,
+      "id": 18,
+      "legend": {
+        "alignAsTable": true,
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "rightSide": true,
+        "show": true,
+        "total": true,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "10.2.0",
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "alias": "$tag_queue $tag_result",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "f809eeca-3002-48f9-ab92-98a7222ab001"
+          },
+          "dsType": "influxdb",
+          "expr": "sum(rate(vertx_eventbus_sent_total[1m]))",
+          "format": "time_series",
+          "groupBy": [
+            {
+              "params": [
+                "queue::tag"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "result::tag"
+              ],
+              "type": "tag"
+            }
+          ],
+          "intervalFactor": 2,
+          "legendFormat": "Average",
+          "measurement": "taskqueue_poller_process_batch",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "count"
+                ],
+                "type": "field"
+              }
+            ]
+          ],
+          "tags": []
+        }
+      ],
+      "thresholds": [],
+      "timeRegions": [],
+      "title": "Task Queue Process Batch Count",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "mode": "time",
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:473",
+          "format": "none",
+          "logBase": 1,
+          "show": true
+        },
+        {
+          "$$hashKey": "object:474",
+          "format": "short",
+          "logBase": 1,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "influxdb",
+        "uid": "dcd61d0b-8946-4970-a7a1-1cc47f42abf1"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "hiddenSeries": false,
+      "id": 19,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "10.2.0",
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "alias": "$tag_queue $tag_result",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "f809eeca-3002-48f9-ab92-98a7222ab001"
+          },
+          "dsType": "influxdb",
+          "expr": "sum(irate(vertx_eventbus_processingTime_seconds_sum[1m])) / sum(irate(vertx_eventbus_processingTime_seconds_count[1m]))",
+          "format": "time_series",
+          "groupBy": [
+            {
+              "params": [
+                "queue::tag"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "result::tag"
+              ],
+              "type": "tag"
+            }
+          ],
+          "intervalFactor": 2,
+          "legendFormat": "Average",
+          "measurement": "taskqueue_poller_process_batch",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "mean"
+                ],
+                "type": "field"
+              }
+            ]
+          ],
+          "tags": []
+        }
+      ],
+      "thresholds": [],
+      "timeRegions": [],
+      "title": "Task Queue Process Batch Time",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "mode": "time",
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "ms",
+          "logBase": 1,
+          "show": true
+        },
+        {
+          "format": "short",
+          "logBase": 1,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "influxdb",
+        "uid": "dcd61d0b-8946-4970-a7a1-1cc47f42abf1"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "hiddenSeries": false,
+      "id": 20,
+      "legend": {
+        "alignAsTable": true,
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "rightSide": true,
+        "show": true,
+        "total": true,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "10.2.0",
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "alias": "$tag_queue $tag_result",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "f809eeca-3002-48f9-ab92-98a7222ab001"
+          },
+          "dsType": "influxdb",
+          "expr": "sum(rate(vertx_eventbus_sent_total[1m]))",
+          "format": "time_series",
+          "groupBy": [
+            {
+              "params": [
+                "queue::tag"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "result::tag"
+              ],
+              "type": "tag"
+            }
+          ],
+          "intervalFactor": 2,
+          "legendFormat": "Average",
+          "measurement": "taskqueue_poller_process_single",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "count"
+                ],
+                "type": "field"
+              }
+            ]
+          ],
+          "tags": []
+        }
+      ],
+      "thresholds": [],
+      "timeRegions": [],
+      "title": "Task Queue Process Single Count",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "mode": "time",
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:473",
+          "format": "none",
+          "logBase": 1,
+          "show": true
+        },
+        {
+          "$$hashKey": "object:474",
+          "format": "short",
+          "logBase": 1,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "influxdb",
+        "uid": "dcd61d0b-8946-4970-a7a1-1cc47f42abf1"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "hiddenSeries": false,
+      "id": 21,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "10.2.0",
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "alias": "$tag_queue $tag_result",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "f809eeca-3002-48f9-ab92-98a7222ab001"
+          },
+          "dsType": "influxdb",
+          "expr": "sum(irate(vertx_eventbus_processingTime_seconds_sum[1m])) / sum(irate(vertx_eventbus_processingTime_seconds_count[1m]))",
+          "format": "time_series",
+          "groupBy": [
+            {
+              "params": [
+                "queue::tag"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "result::tag"
+              ],
+              "type": "tag"
+            }
+          ],
+          "intervalFactor": 2,
+          "legendFormat": "Average",
+          "measurement": "taskqueue_poller_process_single",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "mean"
+                ],
+                "type": "field"
+              }
+            ]
+          ],
+          "tags": []
+        }
+      ],
+      "thresholds": [],
+      "timeRegions": [],
+      "title": "Task Queue Process Single Time",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "mode": "time",
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "ms",
+          "logBase": 1,
+          "show": true
+        },
+        {
+          "format": "short",
+          "logBase": 1,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "influxdb",
         "uid": "f809eeca-3002-48f9-ab92-98a7222ab001"
       },
       "fill": 1,
@@ -544,7 +1040,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 14
+        "y": 28
       },
       "hiddenSeries": false,
       "id": 3,
@@ -665,7 +1161,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 14
+        "y": 28
       },
       "hiddenSeries": false,
       "id": 4,
@@ -791,7 +1287,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 14
+        "y": 28
       },
       "hiddenSeries": false,
       "id": 5,
@@ -929,7 +1425,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 21
+        "y": 35
       },
       "hiddenSeries": false,
       "id": 6,
@@ -1050,7 +1546,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 21
+        "y": 35
       },
       "hiddenSeries": false,
       "id": 7,
@@ -1176,7 +1672,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 28
+        "y": 42
       },
       "hiddenSeries": false,
       "id": 1,
@@ -1298,7 +1794,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 28
+        "y": 42
       },
       "hiddenSeries": false,
       "id": 2,
@@ -1420,7 +1916,7 @@
         "h": 7,
         "w": 6,
         "x": 0,
-        "y": 35
+        "y": 49
       },
       "hiddenSeries": false,
       "id": 8,
@@ -1549,7 +2045,7 @@
         "h": 7,
         "w": 6,
         "x": 6,
-        "y": 35
+        "y": 49
       },
       "hiddenSeries": false,
       "id": 9,
@@ -1671,7 +2167,7 @@
         "h": 7,
         "w": 6,
         "x": 12,
-        "y": 35
+        "y": 49
       },
       "hiddenSeries": false,
       "id": 15,
@@ -1792,7 +2288,7 @@
         "h": 7,
         "w": 6,
         "x": 18,
-        "y": 35
+        "y": 49
       },
       "hiddenSeries": false,
       "id": 11,
@@ -1913,7 +2409,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 42
+        "y": 56
       },
       "hiddenSeries": false,
       "id": 12,
@@ -2034,7 +2530,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 42
+        "y": 56
       },
       "hiddenSeries": false,
       "id": 13,
@@ -2184,6 +2680,6 @@
   "timezone": "",
   "title": "Task Queue",
   "uid": "c8679895-0a3a-44b1-8b62-9d2830ce6e5c",
-  "version": 7,
+  "version": 2,
   "weekStart": ""
 }
