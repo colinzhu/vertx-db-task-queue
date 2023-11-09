@@ -1,12 +1,9 @@
 package io.github.colinzhu.taskqueue;
 
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.eventbus.Message;
-import io.vertx.micrometer.backends.BackendRegistries;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -19,15 +16,10 @@ import java.util.function.Supplier;
 public class TaskProcessorVerticle<T> extends AbstractVerticle {
     private final String queueName;
     private final Supplier<Function<Task<T>, Future<?>>> taskProcessorSupplier;
+    private final TaskQueueMetrics metrics = new TaskQueueMetrics();
     private Function<Task<T>, Future<?>> taskProcessor;
-    private MeterRegistry registry;
-    private Timer timerSuccess;
-    private Timer timerFailure;
     @Override
     public void start() {
-        registry = BackendRegistries.getDefaultNow();
-        timerSuccess = Timer.builder("taskqueue.taskprocessor").tags("queue",queueName,"result","success").register(registry);
-        timerFailure = Timer.builder("taskqueue.taskprocessor").tags("queue",queueName,"result","failure").register(registry);
         taskProcessor = taskProcessorSupplier.get(); // make sure the processor instance is created by verticle itself, not by another component, so the JDBCPool in the processor will be created by this verticle instance
         vertx.eventBus().consumer(queueName, this::handle);
         log.info("{} created", this);
@@ -40,13 +32,13 @@ public class TaskProcessorVerticle<T> extends AbstractVerticle {
                 .compose(any -> taskProcessor.apply(message.body()))
                 .onSuccess(message1 -> {
                     message.reply(message1);
-                    timerSuccess.record(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS);
+                    metrics.processorTimer(queueName, "result","success").record(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS);
                 })
                 .onFailure(err -> {
                     log.error("{} error processing task, taskId={}", this, message.body().getId(), err);
                     message.fail(1, "task processor replied err message: " + err.getMessage());
-                    timerFailure.record(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS);
-                });
+                    metrics.processorTimer(queueName, "result","failure").record(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS);
+               });
     }
 
     @Override

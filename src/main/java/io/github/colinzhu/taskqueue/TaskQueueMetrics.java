@@ -10,4 +10,8 @@ class TaskQueueMetrics {
     Timer pollerTimer(String type, String queueName, String... tags) {
         return Timer.builder("taskqueue.poller." + type).tags("queue",queueName).tags(tags).register(registry);
     }
+
+    Timer processorTimer(String queueName, String... tags) {
+        return Timer.builder("taskqueue.taskprocessor").tags("queue",queueName).tags(tags).register(registry);
+    }
 }
