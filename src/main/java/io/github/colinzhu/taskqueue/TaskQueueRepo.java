@@ -10,11 +10,6 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.charset.CharsetDecoder;
-import java.nio.charset.CodingErrorAction;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -91,7 +86,7 @@ class TaskQueueRepo {
 
     Future<Integer> updateStatusFromWithResult(SqlConnection sqlConnection, long taskId, TaskStatus oriStatus, TaskStatus newStatus, String processResult) {
         long start = System.currentTimeMillis();
-        String truncatedResult = truncateToUtf8ByteLength(processResult, 4000);
+        String truncatedResult = TaskQueueUtils.truncateToUtf8ByteLength(processResult, 4000);
         String sql;
         Map<String, Object> map;
         if (null == truncatedResult) {
@@ -212,7 +207,7 @@ class TaskQueueRepo {
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime newNextProcessTime = now.plusSeconds(nextProcessDelay.getSeconds());
 
-        String truncatedResult = truncateToUtf8ByteLength(processResult, 4000);
+        String truncatedResult = TaskQueueUtils.truncateToUtf8ByteLength(processResult, 4000);
         String sql;
         Map<String, Object> map;
         if (null == truncatedResult) {
@@ -250,22 +245,4 @@ class TaskQueueRepo {
                 .build();
     }
 
-    private static String truncateToUtf8ByteLength(String s, int maxBytes) {
-        if (s == null) {
-            return null;
-        }
-        CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
-        byte[] sba = s.getBytes(StandardCharsets.UTF_8);
-        if (sba.length <= maxBytes) {
-            return s;
-        }
-        // Ensure truncation by having byte buffer = maxBytes
-        ByteBuffer bb = ByteBuffer.wrap(sba, 0, maxBytes);
-        CharBuffer cb = CharBuffer.allocate(maxBytes);
-        // Ignore an incomplete character
-        decoder.onMalformedInput(CodingErrorAction.IGNORE);
-        decoder.decode(bb, cb, true);
-        decoder.flush(cb);
-        return new String(cb.array(), 0, cb.position());
-    }
 }
