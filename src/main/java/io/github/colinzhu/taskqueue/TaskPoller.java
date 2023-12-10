@@ -6,9 +6,6 @@ import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.eventbus.Message;
 import io.vertx.jdbcclient.JDBCPool;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -17,17 +14,14 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
-@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class TaskPoller<T> {
     private final Vertx vertx;
     private final JDBCPool pool;
-    @Getter
     private final TaskPollerConfig<T> config;
     private final TaskQueueServiceImpl taskQueueServiceImpl;
+    private final String pollerId;
+    private final String pollerInstance;
     private final TaskQueueMetrics metrics = new TaskQueueMetrics();
-
-    private String pollerId;
-    private String pollerInstance;
     private boolean isToStop = false;
     private boolean isStopped = true; // default is stopped, until start() is invoked
     private long timerId = -1;
@@ -35,9 +29,12 @@ public class TaskPoller<T> {
     private boolean isWaiting = false;
 
     public TaskPoller(Vertx vertx, JDBCPool pool, TaskPollerConfig<T> config) {
-        this(vertx, pool, config, new TaskQueueServiceImpl(vertx));
-        pollerInstance = UUID.randomUUID().toString();
-        pollerId = "poller-" + config.getQueueName() + "-" + pollerInstance;
+        this.vertx = vertx;
+        this.pool = pool;
+        this.config = config;
+        this.taskQueueServiceImpl = new TaskQueueServiceImpl(vertx);
+        this.pollerInstance = UUID.randomUUID().toString();
+        this.pollerId = "poller-" + config.getQueueName() + "-" + pollerInstance;
 
         String eventBusAddress = "poller." + config.getQueueName();
         vertx.eventBus().consumer(eventBusAddress, message -> {
