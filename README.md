@@ -215,11 +215,11 @@ CREATE INDEX IDX_QNM_ST_NXT_PROC_TM ON TASKS(QUEUE_NAME, STATUS, NEXT_PROCESS_TI
 - [x] 2023-10-25 support parameter to control poller to start or not when verticle is deployed
 - [x] 2023-10-25 support start and stop poller via event bus and support API
 - [x] 2023-11-09 add micrometer
+- [x] 2023-12-10 change support UI layout - swap row and column
+- [x] 2023-12-11 enhance DB error retry logic
 - [ ] study the UUID poller instance impact
-- [ ] enhance DB error retry logic
 - [ ] support start and stop poller from support web page
 - [ ] integrate with 'workflow engine'
-- [ ] change support UI layout - swap row and column
 - [ ] consider to change task ID from long to UUID
 - [ ] house keep - regularly move records to history table
 - [ ] house keep - regularly delete records in history table

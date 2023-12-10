@@ -78,44 +78,39 @@ class TaskQueueRepo {
         long start = System.currentTimeMillis();
         String truncatedResult = TaskQueueUtils.truncateToUtf8ByteLength(processResult, 4000);
         String sql;
-        Map<String, Object> map;
+        Map<String, Object> parameters;
         if (null == truncatedResult) {
             sql = SQL_UPDATE_STATUS_FROM_WITH_RESULT_NULL;
-            map = Map.of("id", taskId, "oriStatus", oriStatus.name(), "newStatus", newStatus.name(), "now", OffsetDateTime.now());
+            parameters = Map.of("id", taskId, "oriStatus", oriStatus.name(), "newStatus", newStatus.name(), "now", OffsetDateTime.now());
         } else {
             sql = SQL_UPDATE_STATUS_FROM_WITH_RESULT;
-            map = Map.of("id", taskId, "oriStatus", oriStatus.name(), "newStatus", newStatus.name(), "now", OffsetDateTime.now(), "processResult", truncatedResult);
+            parameters = Map.of("id", taskId, "oriStatus", oriStatus.name(), "newStatus", newStatus.name(), "now", OffsetDateTime.now(), "processResult", truncatedResult);
         }
+
+        return executeStatusUpdateWithRetry(sqlConnection, sql, parameters, taskId, newStatus, start, 3)
+                .onSuccess(sqlResult -> log.info("task status updated to '{}': taskId={}, time={}ms", newStatus, taskId, System.currentTimeMillis() - start));
+    }
+
+    private Future<Integer> executeStatusUpdateWithRetry(SqlConnection sqlConnection, String sql, Map<String, Object> parameters, long taskId, TaskStatus newStatus, long start, int retries) {
         return SqlTemplate.forUpdate(sqlConnection, sql)
-                .execute(map)
+                .execute(parameters)
                 .map(SqlResult::rowCount)
                 .map(updateCount -> {
                     if (0 == updateCount) {
-                        throw new IllegalStateException(String.format("task update status to '%s' failed: taskId=%s, toStatus=%s, updateCount=0, expected=1, maybe already deleted by another poller.", newStatus, taskId, newStatus));
+                        throw new IllegalStateException(String.format("task update status to '%s' failed: taskId=%s, updateCount=0, expected=1, maybe already updated/deleted by another poller.", newStatus.name(), taskId));
                     } else {
                         return updateCount;
                     }
                 })
                 .recover(err -> {
-                    if (err instanceof IllegalStateException) {
+                    if (err instanceof IllegalStateException || retries <= 0) {
                         return Future.failedFuture(err);
                     } else {
-                        log.warn("task update status to '{}' failed: taskId={} with other unexpected exception, will retry once, time={}ms", newStatus, taskId, System.currentTimeMillis() - start, err);
-                        return SqlTemplate.forUpdate(sqlConnection, sql)
-                                .execute(map)
-                                .map(SqlResult::rowCount)
-                                .map(updateCount -> {
-                                    if (0 == updateCount) {
-                                        throw new IllegalStateException(String.format("task update status to '%s' failed: taskId=%s, toStatus=%s, updateCount=0, expected=1, maybe already deleted by another poller.", newStatus, taskId, newStatus));
-                                    } else {
-                                        return updateCount;
-                                    }
-                                })
-                                .onSuccess(sqlResult -> log.info("task status updated to '{}' successfully (retried): taskId={}, time={}ms", newStatus, taskId, System.currentTimeMillis() - start));
+                        log.warn("task status update to '{}' failed with unexpected exception, will retry, taskId={}", newStatus.name(), taskId, err);
+                        return executeStatusUpdateWithRetry(sqlConnection, sql, parameters, taskId, newStatus, start, retries - 1)
+                                .onSuccess(sqlResult -> log.info("task status updated to '{}' successfully (after retried): taskId={}, time={}ms", newStatus.name(), taskId, System.currentTimeMillis() - start));
                     }
-                })
-                .onSuccess(sqlResult -> log.info("task status updated to '{}': taskId={}, time={}ms", newStatus, taskId, System.currentTimeMillis() - start));
-
+                });
     }
 
     Future<List<TaskEntity>> checkout(SqlConnection sqlConnection, String queueName, int batchSize, Duration deadline) {
