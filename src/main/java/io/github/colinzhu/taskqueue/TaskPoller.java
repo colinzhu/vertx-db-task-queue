@@ -4,6 +4,7 @@ import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.DeliveryOptions;
+import io.vertx.core.eventbus.Message;
 import io.vertx.jdbcclient.JDBCPool;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -167,17 +168,17 @@ public class TaskPoller<T> {
                 })
                 .recover(err -> {
                     log.error("{} error processing task, taskId={}, will TRY to update task status to ERROR.", pollerId, taskEntity.getId(), err);
-                    // for recover to mark the task as ERROR, it needs to be in a separate connection
-                    return pool.withConnection(conn -> taskQueueServiceImpl.fail(conn, taskEntity.getId(), TaskQueueUtils.getStackTrace(err))
-                            .onFailure(e -> {
-                                log.error("{} failed to update task status to ERROR, taskId={}", pollerId, taskEntity.getId(), e);
-                                recordTime("process.single", start, "result", "recover-failed");
-                            })
-                            .compose(count -> {
-                                recordTime("process.single", start, "result", "recovered");
-                                return Future.succeededFuture();
-                            }));
+                    return markTaskAsError(taskEntity, start, err);
                 });
+    }
+
+    private Future<Message<Object>> markTaskAsError(TaskEntity taskEntity, long start, Throwable err) {
+        // for recover to mark the task as ERROR, it needs to be in a separate connection
+        return pool.withConnection(conn -> taskQueueServiceImpl.fail(conn, taskEntity.getId(), TaskQueueUtils.getStackTrace(err))
+                        .onSuccess(count -> log.info("{} updated task status to ERROR, taskId={}, time={}ms", pollerId, taskEntity.getId(), System.currentTimeMillis() - start))
+                        .onFailure(e -> log.error("{} failed to update task status to ERROR, taskId={}", pollerId, taskEntity.getId(), e))
+                        .onComplete(result -> recordTime("process.single", start,"result", result.succeeded() ? "success" : "failure")))
+                .map(count -> null); // in order to convert Future<Integer> to align with eventbus.request's return type Future<Message<Object>>
     }
 
     private void rerunWithDelayIfNecessary(Duration delay) {
