@@ -3,7 +3,7 @@ package io.github.colinzhu.taskqueue;
 import io.vertx.core.Future;
 import io.vertx.sqlclient.SqlConnection;
 import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.OffsetDateTime;
@@ -14,14 +14,9 @@ import static io.github.colinzhu.taskqueue.TaskStatus.ERROR;
 import static io.github.colinzhu.taskqueue.TaskStatus.POISON;
 
 @Slf4j
-@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
+@NoArgsConstructor(access = AccessLevel.PACKAGE)
 class TaskQueueSupportServiceImpl implements TaskQueueSupportService {
-    private final TaskQueueSupportRepo supportRepo;
-    private static final TaskQueueSupportServiceImpl instance = new TaskQueueSupportServiceImpl(TaskQueueSupportRepo.getInstance());
-
-    static TaskQueueSupportServiceImpl getInstance() {
-        return instance;
-    }
+    private final TaskQueueSupportRepo supportRepo = new TaskQueueSupportRepo();
 
     @Override
     public Future<Integer> reenqueueFromError(SqlConnection sqlConnection, Set<Long> taskIds) {

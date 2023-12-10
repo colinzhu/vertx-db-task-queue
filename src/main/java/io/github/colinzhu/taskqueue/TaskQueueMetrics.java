@@ -3,9 +3,12 @@ package io.github.colinzhu.taskqueue;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import io.vertx.micrometer.backends.BackendRegistries;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+@NoArgsConstructor(access = AccessLevel.PACKAGE)
 class TaskQueueMetrics {
     private final MeterRegistry registry = BackendRegistries.getDefaultNow();
 

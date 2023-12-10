@@ -9,7 +9,7 @@ import java.util.Set;
 
 public interface TaskQueueSupportService {
     static TaskQueueSupportService getInstance() {
-        return TaskQueueSupportServiceImpl.getInstance();
+        return new TaskQueueSupportServiceImpl();
     }
 
     Future<Integer> reenqueueFromError(SqlConnection sqlConnection, Set<Long> taskIds);
