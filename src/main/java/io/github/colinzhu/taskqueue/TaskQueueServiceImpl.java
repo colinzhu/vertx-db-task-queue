@@ -6,12 +6,15 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
+import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.SqlConnection;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 import static io.github.colinzhu.taskqueue.TaskStatus.*;
 
@@ -19,7 +22,7 @@ import static io.github.colinzhu.taskqueue.TaskStatus.*;
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class TaskQueueServiceImpl implements TaskQueueService {
     private final Vertx vertx;
-    private final TaskQueueRepo taskQueueRepo;
+    private final TaskQueueRepo taskQueueRepo = new TaskQueueRepo();
 
     /**
      * disable SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, so the date time format will be:
@@ -81,5 +84,22 @@ class TaskQueueServiceImpl implements TaskQueueService {
 
     public Future<Integer> fail(SqlConnection sqlConnection, long taskId, String processResult) {
         return taskQueueRepo.updateStatusFromWithResult(sqlConnection, taskId, PROCESSING, ERROR, processResult);
+    }
+
+    Future<List<TaskEntity>> fetchBatch(JDBCPool pool, String queueName, int batchSize, Duration nextProcessDelay) {
+        return pool.withTransaction(sqlConnection -> taskQueueRepo.checkout(sqlConnection, queueName, batchSize, nextProcessDelay));
+    }
+
+    Future<List<TaskEntity>> fetchBatch2(JDBCPool pool, String queueName, int batchSize, Duration nextProcessDelay, String pollerInstance) {
+        // 'update' and 'select' are in 2 different connections, not in one transaction
+        var step1updateCount = pool.withConnection(sqlConnection -> taskQueueRepo.checkout2step1update(sqlConnection, queueName, batchSize, nextProcessDelay, pollerInstance));
+        return step1updateCount
+                .compose(count -> {
+                    if (count > 0) {
+                        return pool.withConnection(sqlConnection -> taskQueueRepo.checkout2step2select(sqlConnection, queueName, pollerInstance));
+                    } else {
+                        return Future.succeededFuture(new ArrayList<>());
+                    }
+                }); // the caller has error log, so doesn't print error log here
     }
 }

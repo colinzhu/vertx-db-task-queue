@@ -6,8 +6,6 @@ import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.SqlConnection;
 import io.vertx.sqlclient.SqlResult;
 import io.vertx.sqlclient.templates.SqlTemplate;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -20,14 +18,7 @@ import java.util.stream.Collectors;
 import static io.github.colinzhu.taskqueue.TaskStatus.CREATED;
 
 @Slf4j
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
 class TaskQueueRepo {
-    private static final TaskQueueRepo instance = new TaskQueueRepo();
-
-    static TaskQueueRepo getInstance() {
-        return instance;
-    }
-
     private static final String SQL_INSERT = "INSERT INTO TASKS (QUEUE_NAME, STATUS, ATTEMPT, PAYLOAD, REFERENCE_NUMBER, CREATE_TIME, NEXT_PROCESS_TIME, LAST_UPDATE_TIME) VALUES (#{queueName}, 'CREATED', 0, #{payload}, #{refNumber}, #{createTime}, #{nextProcessTime}, #{lastUpdateTime})";
     private static final String SQL_FINISH_DELETE = "DELETE TASKS WHERE ID = #{id} AND STATUS = 'PROCESSING'"; // only delete status in PROCESSING, in case updated by other already
     private static final String SQL_UPDATE_STATUS_FROM_WITH_RESULT_NULL = "UPDATE TASKS SET STATUS = #{newStatus}, LAST_UPDATE_TIME = #{now}, PROCESS_RESULT = NULL WHERE ID = #{id} and STATUS = #{oriStatus}";

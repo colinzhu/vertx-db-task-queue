@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -24,7 +23,6 @@ public class TaskPoller<T> {
     private final JDBCPool pool;
     @Getter
     private final TaskPollerConfig<T> config;
-    private final TaskQueueRepo taskQueueRepo;
     private final TaskQueueServiceImpl taskQueueServiceImpl;
     private final TaskQueueMetrics metrics = new TaskQueueMetrics();
 
@@ -37,7 +35,7 @@ public class TaskPoller<T> {
     private boolean isWaiting = false;
 
     public TaskPoller(Vertx vertx, JDBCPool pool, TaskPollerConfig<T> config) {
-        this(vertx, pool, config, TaskQueueRepo.getInstance(), new TaskQueueServiceImpl(vertx, TaskQueueRepo.getInstance()));
+        this(vertx, pool, config, new TaskQueueServiceImpl(vertx));
         pollerInstance = UUID.randomUUID().toString();
         pollerId = "poller-" + config.getQueueName() + "-" + pollerInstance;
 
@@ -101,7 +99,7 @@ public class TaskPoller<T> {
         isStopped = false;
         long start = System.currentTimeMillis();
         String pollId = pollerId + "-" + start;
-        fetchBatch2()
+        taskQueueServiceImpl.fetchBatch2(pool, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay(), pollerInstance)
                 .onSuccess(batch -> {
                     long end = System.currentTimeMillis();
                     recordTime("fetch.batch", start, "result", "success");
@@ -116,23 +114,6 @@ public class TaskPoller<T> {
                     log.error("{} failed to fetch tasks, retry in {}", pollId, config.getErrorCheckOutInterval(), e);
                     rerunWithDelayIfNecessary(config.getErrorCheckOutInterval());
                 });
-    }
-
-    private Future<List<TaskEntity>> fetchBatch() {
-        return pool.withTransaction(sqlConnection -> taskQueueRepo.checkout(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay()));
-    }
-
-    private Future<List<TaskEntity>> fetchBatch2() {
-        // 'update' and 'select' are in 2 different connections, not in one transaction
-        var step1updateCount = pool.withConnection(sqlConnection -> taskQueueRepo.checkout2step1update(sqlConnection, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay(), pollerInstance));
-        return step1updateCount
-                .compose(count -> {
-                    if (count > 0) {
-                        return pool.withConnection(sqlConnection -> taskQueueRepo.checkout2step2select(sqlConnection, config.getQueueName(), pollerInstance));
-                    } else {
-                        return Future.succeededFuture(new ArrayList<>());
-                    }
-                }); // the caller has error log, so doesn't print error log here
     }
 
     private void processBatch(List<TaskEntity> batch, String pollId, long fetchStart) {
