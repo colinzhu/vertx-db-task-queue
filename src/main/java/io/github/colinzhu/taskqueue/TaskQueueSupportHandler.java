@@ -111,13 +111,13 @@ public class TaskQueueSupportHandler implements Supplier<Router> {
 
     private void pollerPause(RoutingContext routingContext) {
         String queueName = routingContext.pathParam("queueName");
-        vertx.eventBus().publish("taskqueue.poller.pause." + queueName, queueName); // 'publish' instead of 'request' to reduce dependency
+        TaskPollerVerticle.pausePoller(vertx, queueName);
         routingContext.response().end(Json.encode("paused request sent for: " + queueName));
     }
 
     private void pollerStart(RoutingContext routingContext) {
         String queueName = routingContext.pathParam("queueName");
-        vertx.eventBus().publish("taskqueue.poller.start." + queueName, queueName); // 'publish' instead of 'request' to reduce dependency
+        TaskPollerVerticle.startPoller(vertx, queueName);
         routingContext.response().end(Json.encode("start request sent for: " + queueName));
     }
 }

@@ -7,7 +7,6 @@ import io.vertx.core.eventbus.Message;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -32,12 +31,14 @@ public class TaskProcessorVerticle<T> extends AbstractVerticle {
                 .compose(any -> taskProcessor.apply(message.body()))
                 .onSuccess(message1 -> {
                     message.reply(message1);
-                    metrics.processorTimer(queueName, "result","success").record(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS);
+//                    metrics.processorTimer(queueName, "result","success").record(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS);
+                    recordTime(start, "result","success");
                 })
                 .onFailure(err -> {
                     log.error("{} error processing task, taskId={}", this, message.body().getId(), err);
                     message.fail(1, "task processor replied err message: " + err.getMessage());
-                    metrics.processorTimer(queueName, "result","failure").record(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS);
+//                    metrics.processorTimer(queueName, "result","failure").record(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS);
+                    recordTime(start, "result","failure");
                });
     }
 
@@ -49,6 +50,10 @@ public class TaskProcessorVerticle<T> extends AbstractVerticle {
             log.info("{} stopped", this);
         });
         vertx.setPeriodic(1000, id -> log.info("{} stopping...", this));
+    }
+
+    private void recordTime(long startTime, String... tags) {
+        metrics.recordTime("taskqueue.taskprocessor", queueName, startTime, tags);
     }
 
     @Override

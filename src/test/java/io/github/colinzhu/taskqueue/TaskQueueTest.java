@@ -47,6 +47,7 @@ class TaskQueueTest {
         pool = db.getJdbcPool(vertx);
         db.createTables(pool).onComplete(ar -> testContext.completeNow());
         poolSupplier = () -> db.getJdbcPool(vertx);
+
     }
 
     private static void setLogLevel(String logger, Level level) {
@@ -188,7 +189,7 @@ class TaskQueueTest {
     @Test
     @DisplayName("Poller is stopped - no task will be picked up")
     void testPollerStopped(Vertx vertx, VertxTestContext testContext) {
-        Checkpoint checkpoint = testContext.checkpoint(3);
+        Checkpoint checkpoint = testContext.checkpoint(2);
 
         // prepare a task processor
         Function<Task<Payment>, Future<?>> taskProcessor = task -> {
@@ -207,11 +208,12 @@ class TaskQueueTest {
                 .compose(any -> vertx.deployVerticle(pollerVerticle));
 
         deployVerticles.onSuccess(any -> {
+            TaskPollerVerticle.pausePoller(vertx, taskPollerConfig.getQueueName());
             // stop the poller
-            vertx.setTimer(1000, id -> pollerVerticle.stopPoller()  // make sure the poller has already processed the task
-                    .onSuccess(v -> log.info("poller stopped."))
-                    .onSuccess(v -> checkpoint.flag())
-                    .onSuccess(v -> {
+//            vertx.setTimer(1000, id -> pollerVerticle.stopPoller()
+//                    .onSuccess(v -> log.info("poller stopped."))
+//                    .onSuccess(v -> checkpoint.flag())
+                    vertx.setTimer(1000, id -> {// make sure the poller has already processed the task
                         // after the poller is stopped, enqueue a task
                         Payment payment = new Payment("CREATED", OffsetDateTime.now());
                         Future<Long> enqueueTask = pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, "Q3-poller-stopped", "ref1", p)));
@@ -230,8 +232,8 @@ class TaskQueueTest {
                                 checkpoint.flag();
                             }));
                         }));
-                    })
-            );
+                    });
+//            );
         });
     }
 

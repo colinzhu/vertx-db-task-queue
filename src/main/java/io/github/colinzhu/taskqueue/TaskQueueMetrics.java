@@ -4,14 +4,16 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import io.vertx.micrometer.backends.BackendRegistries;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+
 class TaskQueueMetrics {
     private final MeterRegistry registry = BackendRegistries.getDefaultNow();
 
-    Timer pollerTimer(String type, String queueName, String... tags) {
-        return Timer.builder("taskqueue.poller." + type).tags("queue",queueName).tags(tags).register(registry);
-    }
-
-    Timer processorTimer(String queueName, String... tags) {
-        return Timer.builder("taskqueue.taskprocessor").tags("queue",queueName).tags(tags).register(registry);
+    void recordTime(String name, String queueName, long startTime, String... tags) {
+        if (registry == null) {
+            return;
+        }
+        Timer.builder(name).tags("queue",queueName).tags(tags).register(registry)
+                .record(System.currentTimeMillis() - startTime, MILLISECONDS);
     }
 }

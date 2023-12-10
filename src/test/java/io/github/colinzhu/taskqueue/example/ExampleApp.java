@@ -36,6 +36,7 @@ public class ExampleApp {
         setLogLevel("io.github.colinzhu.taskqueue", Level.DEBUG);
         setLogLevel("io.github.colinzhu.taskqueue.TaskPoller", Level.DEBUG);
         setLogLevel("io.github.colinzhu.taskqueue.TaskQueueRepo", Level.DEBUG);
+        setLogLevel("io.micrometer", Level.OFF);
 
         MicrometerMetricsOptions options = new MicrometerMetricsOptions()
                 .setInfluxDbOptions(new VertxInfluxDbOptions().setEnabled(true))

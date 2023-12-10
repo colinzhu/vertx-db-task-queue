@@ -1,12 +1,11 @@
 package io.github.colinzhu.taskqueue;
 
 import io.vertx.core.AbstractVerticle;
-import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.jdbcclient.JDBCPool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
+import io.vertx.core.Vertx;
 import java.util.function.Supplier;
 
 @Slf4j
@@ -15,6 +14,9 @@ public class TaskPollerVerticle<T> extends AbstractVerticle {
     private final Supplier<JDBCPool> poolSupplier;
     private final TaskPollerConfig<T> config;
     private TaskPoller<T> poller;
+
+    private static final String POLLER_PAUSE_PREFIX = "taskqueue.poller.pause.";
+    private static final String POLLER_START_PREFIX = "taskqueue.poller.start.";
 
     @Override
     public void start() {
@@ -27,8 +29,9 @@ public class TaskPollerVerticle<T> extends AbstractVerticle {
             log.info("{} toStartPoller=false, will NOT start the poller", this);
         }
 
-        vertx.eventBus().consumer("taskqueue.poller.pause." + config.getQueueName(), msg -> poller.stop().onSuccess(v -> log.info("{} paused", this)));
-        vertx.eventBus().consumer("taskqueue.poller.start." + config.getQueueName(), msg -> { poller.start(); log.info("{} started", this); });
+        vertx.eventBus().consumer(POLLER_PAUSE_PREFIX + config.getQueueName(), msg -> poller.stop().onSuccess(v -> log.info("{} paused", this)));
+        vertx.eventBus().consumer(POLLER_START_PREFIX + config.getQueueName(), msg -> { poller.start(); log.info("{} started", this); });
+
         log.info("{} created", this);
     }
 
@@ -38,13 +41,16 @@ public class TaskPollerVerticle<T> extends AbstractVerticle {
         poller.stop().onSuccess(v -> stopPromise.complete()).onSuccess(v -> log.info("{} stopped", this));
     }
 
-    @Deprecated
-    public Future<Void> stopPoller() {
-        return poller.stop();
-    }
-
     @Override
     public String toString() {
         return this.getClass().getSimpleName() + "-" + config.getQueueName() + "-" + Integer.toHexString(hashCode());
+    }
+
+    static void pausePoller(Vertx vertx, String queueName) {
+        vertx.eventBus().publish(POLLER_PAUSE_PREFIX + queueName, null);
+    }
+
+    static void startPoller(Vertx vertx, String queueName) {
+        vertx.eventBus().publish(POLLER_START_PREFIX + queueName, null);
     }
 }
