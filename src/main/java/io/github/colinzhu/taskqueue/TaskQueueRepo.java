@@ -26,6 +26,8 @@ class TaskQueueRepo {
     private static final String SQL_CHECK_OUT_STEP1_SELECT = "SELECT * FROM TASKS WHERE ID IN (SELECT ID FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY) AND STATUS IN ('CREATED','PROCESSING') AND NEXT_PROCESS_TIME <= #{now} FOR UPDATE SKIP LOCKED";
     private static final String SQL_CHECK_OUT_STEP2_UPDATE = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE ID IN ({idList})";
     private static final String SQL_CHECK_OUT_2_STEP1 = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', POLLER_INSTANCE = #{pollerInstance}, NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE (ID, LAST_UPDATE_TIME) IN ((SELECT ID, LAST_UPDATE_TIME FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY)) AND NEXT_PROCESS_TIME <= #{now}";
+
+    // SQL_CHECK_OUT_2_STEP1_OPTION2 is for Oracle, seems with better performance than SQL_CHECK_OUT_2_STEP1, but cannot guarantee tasks are pick in the order of NEXT_PROCESS_TIME
     private static final String SQL_CHECK_OUT_2_STEP1_OPTION2 = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', POLLER_INSTANCE = #{pollerInstance}, NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} AND ROWNUM <= #{batchSize}";
     private static final String SQL_CHECK_OUT_2_STEP2 = "SELECT * FROM TASKS WHERE STATUS = 'PROCESSING' AND QUEUE_NAME = #{queueName} AND POLLER_INSTANCE = #{pollerInstance} AND NEXT_PROCESS_TIME > #{now}";
     private static final String SQL_RE_ENQUEUE_WITH_RESULT_NULL = "UPDATE TASKS SET STATUS = 'CREATED', POLLER_INSTANCE = NULL, NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now}, PROCESS_RESULT = NULL WHERE ID = #{id} AND STATUS = 'PROCESSING'";
@@ -170,7 +172,28 @@ class TaskQueueRepo {
                 });
     }
 
-    Future<Integer> checkout2step1update(SqlConnection sqlConnection, String queueName, int batchSize, Duration nextProcessDelay, String pollerInstance) {
+    /**
+     * <p>The `checkout2` method is designed to fetch a batch of tasks from the database without using row-level locks. This is achieved by using two separate SQL statements in two different connections, not in one transaction.</p>
+     * <p>The first SQL statement (`checkout2step1update`) updates the status of the tasks and the second statement (`checkout2step2select`) selects the updated tasks.</p>
+     * <p>The `checkout2step1update` SQL statement updates the status of the tasks to 'PROCESSING' and sets the `POLLER_INSTANCE` to the current poller instance. It only updates tasks that are in 'CREATED' or 'PROCESSING' status, whose `NEXT_PROCESS_TIME` is less than or equal to the current time, and only updates up to `batchSize` number of tasks.</p>
+     * <p>The `checkout2step2select` SQL statement then selects the tasks that are in 'PROCESSING' status, whose `QUEUE_NAME` matches the given queue name, and whose `POLLER_INSTANCE` matches the current poller instance.</p>
+     * <p>In a multi-instance scenario, it is possible that two instances execute the `checkout2step1update` statement at the same time and update the same tasks. However, since each instance sets the `POLLER_INSTANCE` to its own instance identifier, when they execute the `checkout2step2select` statement, they will only select the tasks that they themselves have updated. Therefore, it should not be possible for the same tasks to be fetched by more than one instance.</p>
+     * <p>Exception case: The checkout2step1update statement updates the NEXT_PROCESS_TIME to be less than or equal to the current time. So, if an application instance crashes or is stopped after executing the checkout2step1update statement but before executing the checkout2step2select statement, these tasks will not be selected and processed until the application instance restarts and executes the checkout2step2select statement. However, in the meantime, other running instances of the application can execute the checkout2step1update statement and fetch these idled records because their NEXT_PROCESS_TIME is in the past. So, while there might be a delay in processing these tasks, they will not be left unprocessed indefinitely.</p>
+     */
+    Future<List<TaskEntity>> checkout2(JDBCPool pool, String queueName, int batchSize, Duration nextProcessDelay, String pollerInstance) {
+        // 'update' and 'select' are in 2 different connections, not in one transaction
+        var step1updateCount = pool.withConnection(sqlConnection -> checkout2step1update(sqlConnection, queueName, batchSize, nextProcessDelay, pollerInstance));
+        return step1updateCount
+                .compose(count -> {
+                    if (count > 0) {
+                        return pool.withConnection(sqlConnection -> checkout2step2select(sqlConnection, queueName, pollerInstance));
+                    } else {
+                        return Future.succeededFuture(new ArrayList<>());
+                    }
+                }); // the caller has error log, so doesn't print error log here
+    }
+
+    private Future<Integer> checkout2step1update(SqlConnection sqlConnection, String queueName, int batchSize, Duration nextProcessDelay, String pollerInstance) {
         long start = System.currentTimeMillis();
         OffsetDateTime newNextProcessTime = OffsetDateTime.now().plusSeconds(nextProcessDelay.getSeconds());
         return SqlTemplate.forUpdate(sqlConnection, SQL_CHECK_OUT_2_STEP1)
@@ -180,7 +203,7 @@ class TaskQueueRepo {
                 .onFailure(err -> log.error("tasks checkout2step1update failed, queue={}, pollerInstance={}, time={}ms", queueName, pollerInstance, System.currentTimeMillis() - start, err));
     }
 
-    Future<List<TaskEntity>> checkout2step2select(SqlConnection sqlConnection, String queueName, String pollerInstance) {
+    private Future<List<TaskEntity>> checkout2step2select(SqlConnection sqlConnection, String queueName, String pollerInstance) {
         long start = System.currentTimeMillis();
         return SqlTemplate.forQuery(sqlConnection, SQL_CHECK_OUT_2_STEP2)
                 .execute(Map.of("queueName", queueName, "pollerInstance", pollerInstance, "now", OffsetDateTime.now()))

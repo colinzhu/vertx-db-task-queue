@@ -10,7 +10,7 @@ import java.time.Duration;
  * <pre>
  * Task Queue Service to:
  * 1. enqueue - put a task into a queue
- * 2. finish - remove the task from the queue
+ * 2. complete - complete a task from the queue
  * 3. reenqueue - put the task back to the queue with a process delay time
  * </pre>
  */
@@ -20,8 +20,7 @@ public interface TaskQueueService {
     }
 
     /**
-     * To create a task into task queue
-     *
+     * Enqueues a task into the task queue with no delay time.
      * @param sqlConnection DB transaction
      * @param queueName     queue name
      * @param refNumber     reference number of payload
@@ -32,8 +31,7 @@ public interface TaskQueueService {
     <T> Future<Long> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload);
 
     /**
-     * To create a task into task queue
-     *
+     * Enqueues a task into the task queue with a delay time.
      * @param sqlConnection DB transaction
      * @param queueName     queue name
      * @param refNumber     reference number of payload
@@ -45,7 +43,7 @@ public interface TaskQueueService {
     <T> Future<Long> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration delay);
 
     /**
-     * To complete the task
+     * Completes a task without setting a process result.
      * @param sqlConnection DB transaction
      * @param taskId the task ID
      * @return future of number of task updated
@@ -53,7 +51,7 @@ public interface TaskQueueService {
     Future<Integer> complete(SqlConnection sqlConnection, long taskId);
 
     /**
-     * To complete the task
+     * Completes a task and sets a process result.
      * @param sqlConnection DB transaction
      * @param taskId the task ID
      * @param processResult the process result
@@ -62,16 +60,15 @@ public interface TaskQueueService {
     Future<Integer> complete(SqlConnection sqlConnection, long taskId, String processResult);
 
     /**
-     * To complete by deleting the task
+     * Completes a task by deleting it from the queue.
      * @param sqlConnection DB transaction
      * @param taskId the task ID
      * @return future of number of task deleted
      */
-
     Future<Integer> completeDelete(SqlConnection sqlConnection, long taskId);
 
     /**
-     * Update the task so that it can be processed again later
+     * Reenqueues a task so that it can be processed again later.
      * @param sqlConnection DB transaction
      * @param taskId the task ID
      * @param delay process delay time after putting into the queue
@@ -80,7 +77,7 @@ public interface TaskQueueService {
     Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay);
 
     /**
-     * Update the task so that it can be processed again later
+     * Reenqueues a task so that it can be processed again later and sets a process result.
      * @param sqlConnection DB transaction
      * @param taskId the task ID
      * @param delay process delay time after putting into the queue

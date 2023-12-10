@@ -13,7 +13,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 
 import static io.github.colinzhu.taskqueue.TaskStatus.*;
@@ -91,15 +90,6 @@ class TaskQueueServiceImpl implements TaskQueueService {
     }
 
     Future<List<TaskEntity>> fetchBatch2(JDBCPool pool, String queueName, int batchSize, Duration nextProcessDelay, String pollerInstance) {
-        // 'update' and 'select' are in 2 different connections, not in one transaction
-        var step1updateCount = pool.withConnection(sqlConnection -> taskQueueRepo.checkout2step1update(sqlConnection, queueName, batchSize, nextProcessDelay, pollerInstance));
-        return step1updateCount
-                .compose(count -> {
-                    if (count > 0) {
-                        return pool.withConnection(sqlConnection -> taskQueueRepo.checkout2step2select(sqlConnection, queueName, pollerInstance));
-                    } else {
-                        return Future.succeededFuture(new ArrayList<>());
-                    }
-                }); // the caller has error log, so doesn't print error log here
+        return taskQueueRepo.checkout2(pool, queueName, batchSize, nextProcessDelay, pollerInstance);
     }
 }
