@@ -91,6 +91,7 @@ async function showListTable() {
     });
     return table;
 }
+
 async function processSelected(listTable, countTable, batchUpdateUrl) {
     const selectedData = listTable.getSelectedData();
     if (selectedData.length == 0) {
@@ -120,21 +121,25 @@ async function processSelected(listTable, countTable, batchUpdateUrl) {
 
     // refresh list table
     listTable.replaceData(listTable.getAjaxUrl());
-    countTable.replaceData(URL_COUNT);
 
+    // refresh count table
+    await fetchDataAndUpdateCountTable(countTable, URL_COUNT);
 }
+
 
 const countTable = await showCountTable();
 const listTable = await showListTable();
 
-// when click the cell of countTable, refresh listTable
-countTable.on("cellClick", function (e, cell) {
+countTable.on("cellClick", async function (e, cell) {
     const data = cell.getRow().getData();
     const field = cell.getField();
     console.log("selected:", data, field);
     if (field !== 'queueName' && field !== 'TOTAL') {
         listTable.replaceData(URL_SEARCH + "/" + data.queueName + "/" + field + "?size=1000");
     }
+
+    // Refresh countTable
+    await fetchDataAndUpdateCountTable(countTable, URL_COUNT);
 });
 
 listTable.on("rowSelectionChanged", function (data, rows) {
