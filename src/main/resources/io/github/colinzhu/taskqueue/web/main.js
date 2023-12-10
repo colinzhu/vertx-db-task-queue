@@ -7,19 +7,56 @@ const URL_MARK_POISON = "../api/mark-poison";
 const URL_POISON_TO_ERROR = "../api/poison-to-error";
 const URL_HOUSEKEEP_POISON = "../api/housekeep-poison";
 
-async function showCountTable() {
-    const resp = await fetch(URL_COUNT);
+async function fetchAndTransformCountData(url) {
+    const resp = await fetch(url);
     const jsonData = await resp.json();
-    const table = await new Tabulator("#table-count", {
-        data: jsonData,
-        layout: "fitDataStretch",
-        columns: [
-            { title: "queueName", field: "queueName" },
-            { title: "status", field: "status", width:200},
-            { title: "count", field: "count", sorter: "number" },
-        ],
+
+    // Transform the data
+    const transformedData = {};
+    jsonData.forEach(({ queueName, status, count }) => {
+        if (!transformedData[queueName]) {
+            transformedData[queueName] = {};
+            transformedData[queueName]['TOTAL'] = 0;
+        }
+        transformedData[queueName][status] = count;
+        transformedData[queueName]['TOTAL'] += count;
     });
+
+    // Convert the transformed data back to an array
+    const data = Object.entries(transformedData).map(([queueName, counts]) => ({
+        queueName,
+        ...counts
+    }));
+
+    return data;
+}
+
+async function showCountTable() {
+    const data = await fetchAndTransformCountData(URL_COUNT);
+
+    // Define the columns
+    const columns = [
+        { title: "QUEUE", field: "queueName" },
+        { title: "CREATED", field: "CREATED" },
+        { title: "PROCESSING", field: "PROCESSING" },
+        { title: "COMPLETED", field: "COMPLETED" },
+        { title: "ERROR", field: "ERROR" },
+        { title: "POISON", field: "POISON" },
+        { title: "TOTAL", field: "TOTAL" }
+    ];
+
+    const table = await new Tabulator("#table-count", {
+        data,
+        layout: "fitDataStretch",
+        columns
+    });
+
     return table;
+}
+
+async function fetchDataAndUpdateCountTable(table, url) {
+    const data = await fetchAndTransformCountData(url);
+    table.replaceData(data);
 }
 
 async function showListTable() {
@@ -90,18 +127,22 @@ async function processSelected(listTable, countTable, batchUpdateUrl) {
 const countTable = await showCountTable();
 const listTable = await showListTable();
 
-countTable.on("rowClick", function (e, row) {
-    const data = row.getData();
-    console.log("selected:", data);
-    listTable.replaceData(URL_SEARCH + "/" + data.queueName + "/" + data.status + "?size=1000");
+// when click the cell of countTable, refresh listTable
+countTable.on("cellClick", function (e, cell) {
+    const data = cell.getRow().getData();
+    const field = cell.getField();
+    console.log("selected:", data, field);
+    if (field !== 'queueName' && field !== 'TOTAL') {
+        listTable.replaceData(URL_SEARCH + "/" + data.queueName + "/" + field + "?size=1000");
+    }
 });
 
 listTable.on("rowSelectionChanged", function (data, rows) {
     document.getElementById("select-stats").innerHTML = "Selected: " + data.length;
 });
 
-document.getElementById("btn-refresh").onclick = function (e) {
-    countTable.replaceData(URL_COUNT);
+document.getElementById("btn-refresh").onclick = async function (e) {
+    await fetchDataAndUpdateCountTable(countTable, URL_COUNT);
     const listTableAjaxUrl = listTable.getAjaxUrl();
     if (listTableAjaxUrl != null && listTableAjaxUrl != "") {
         listTable.replaceData(listTableAjaxUrl);
