@@ -1,6 +1,8 @@
 package io.github.colinzhu.taskqueue.internal;
 
-import lombok.*;
+import lombok.Builder;
+import lombok.ToString;
+import lombok.Value;
 
 import java.io.Serializable;
 import java.time.OffsetDateTime;

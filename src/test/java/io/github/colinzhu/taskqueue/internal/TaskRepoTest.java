@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class TaskQueueRepoTest {
+class TaskRepoTest {
 
     @Test
     void testTruncateToUtf8ByteLength_withChineseCharacters_exceedLength() {
@@ -12,7 +12,7 @@ class TaskQueueRepoTest {
         String expected = "测试测";
         int length = 10;
 
-        String actual = TaskQueueRepo.truncateToUtf8ByteLength(input, length);
+        String actual = TaskRepo.truncateToUtf8ByteLength(input, length);
 
         assertByteLength(actual, length);
         assertEquals(expected, actual);
@@ -24,7 +24,7 @@ class TaskQueueRepoTest {
         String expected = "测试测";
         int length = 10;
 
-        String actual = TaskQueueRepo.truncateToUtf8ByteLength(input, length);
+        String actual = TaskRepo.truncateToUtf8ByteLength(input, length);
 
         assertByteLength(actual, length);
         assertEquals(expected, actual);
@@ -32,7 +32,7 @@ class TaskQueueRepoTest {
 
     @Test
     void testTruncateToUtf8ByteLength_withNullInput() {
-        assertNull(TaskQueueRepo.truncateToUtf8ByteLength(null, 10));
+        assertNull(TaskRepo.truncateToUtf8ByteLength(null, 10));
     }
 
     @Test
@@ -41,7 +41,7 @@ class TaskQueueRepoTest {
         String expected = "Hello";
         int length = 10;
 
-        String actual = TaskQueueRepo.truncateToUtf8ByteLength(input, length);
+        String actual = TaskRepo.truncateToUtf8ByteLength(input, length);
 
         assertByteLength(actual, length);
         assertEquals(expected, actual);
@@ -53,7 +53,7 @@ class TaskQueueRepoTest {
         String expected = "HelloHello";
         int length = 10;
 
-        String actual = TaskQueueRepo.truncateToUtf8ByteLength(input, length);
+        String actual = TaskRepo.truncateToUtf8ByteLength(input, length);
 
         assertByteLength(actual, length);
         assertEquals(expected, actual);

@@ -6,8 +6,8 @@ import io.github.colinzhu.taskqueue.example.Payment;
 import io.github.colinzhu.taskqueue.internal.TaskStatus;
 import io.github.colinzhu.taskqueue.polling.Task;
 import io.github.colinzhu.taskqueue.polling.TaskPollerConfig;
-import io.github.colinzhu.taskqueue.polling.TaskPollerVerticle;
-import io.github.colinzhu.taskqueue.polling.TaskProcessorVerticle;
+import io.github.colinzhu.taskqueue.polling.verticle.TaskPollerVerticle;
+import io.github.colinzhu.taskqueue.polling.verticle.TaskProcessorVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -38,13 +38,13 @@ class TaskQueueTest {
     private static JDBCPool pool;
     private static Supplier<JDBCPool> poolSupplier;
     private static TaskQueueService taskQueueService;
-
+    private static final String POLLER_PAUSE_PREFIX = "taskqueue.poller.pause.";
     @BeforeAll
     static void init(Vertx vertx, VertxTestContext testContext) {
         setLogLevel(ROOT_LOGGER_NAME, Level.INFO);
         setLogLevel("com.mchange.v2.resourcepool.BasicResourcePool", Level.INFO);
         setLogLevel("io.github.colinzhu.taskqueue", Level.DEBUG);
-        setLogLevel("io.github.colinzhu.taskqueue.internal.TaskQueueRepo", Level.DEBUG);
+        setLogLevel("io.github.colinzhu.taskqueue.internal.TaskRepo", Level.DEBUG);
         setLogLevel("io.github.colinzhu.taskqueue.polling.TaskPoller", Level.DEBUG);
 
         taskQueueService = TaskQueueService.taskQueue(vertx);
@@ -213,7 +213,8 @@ class TaskQueueTest {
                 .compose(any -> vertx.deployVerticle(pollerVerticle));
 
         deployVerticles.onSuccess(any -> {
-            TaskPollerVerticle.pausePoller(vertx, taskPollerConfig.getQueueName());
+            vertx.eventBus().publish(POLLER_PAUSE_PREFIX + taskPollerConfig.getQueueName(), null);
+
             // stop the poller
 //            vertx.setTimer(1000, id -> pollerVerticle.stopPoller()
 //                    .onSuccess(v -> log.info("poller stopped."))

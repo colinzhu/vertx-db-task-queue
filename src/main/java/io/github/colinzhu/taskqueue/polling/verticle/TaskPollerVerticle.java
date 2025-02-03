@@ -1,5 +1,7 @@
-package io.github.colinzhu.taskqueue.polling;
+package io.github.colinzhu.taskqueue.polling.verticle;
 
+import io.github.colinzhu.taskqueue.polling.TaskPoller;
+import io.github.colinzhu.taskqueue.polling.TaskPollerConfig;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.jdbcclient.JDBCPool;

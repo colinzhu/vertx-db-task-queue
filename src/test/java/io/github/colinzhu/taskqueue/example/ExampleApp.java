@@ -6,8 +6,8 @@ import io.github.colinzhu.taskqueue.*;
 import io.github.colinzhu.taskqueue.example.check.PaymentCheckTaskProcessor;
 import io.github.colinzhu.taskqueue.example.release.PaymentReleaseTaskProcessor;
 import io.github.colinzhu.taskqueue.polling.TaskPollerConfig;
-import io.github.colinzhu.taskqueue.polling.TaskPollerVerticle;
-import io.github.colinzhu.taskqueue.polling.TaskProcessorVerticle;
+import io.github.colinzhu.taskqueue.polling.verticle.TaskPollerVerticle;
+import io.github.colinzhu.taskqueue.polling.verticle.TaskProcessorVerticle;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.jvm.ClassLoaderMetrics;
 import io.micrometer.core.instrument.binder.jvm.JvmMemoryMetrics;
@@ -38,7 +38,7 @@ public class ExampleApp {
         setLogLevel("com.mchange.v2.resourcepool.BasicResourcePool", Level.DEBUG);
         setLogLevel("io.github.colinzhu.taskqueue", Level.DEBUG);
         setLogLevel("io.github.colinzhu.taskqueue.polling.TaskPoller", Level.DEBUG);
-        setLogLevel("io.github.colinzhu.taskqueue.internal.TaskQueueRepo", Level.DEBUG);
+        setLogLevel("io.github.colinzhu.taskqueue.internal.TaskRepo", Level.DEBUG);
         setLogLevel("io.micrometer", Level.OFF);
 
         MicrometerMetricsOptions options = new MicrometerMetricsOptions()

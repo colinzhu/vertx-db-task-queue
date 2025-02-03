@@ -1,5 +1,7 @@
-package io.github.colinzhu.taskqueue.polling;
+package io.github.colinzhu.taskqueue.polling.verticle;
 
+import io.github.colinzhu.taskqueue.polling.Task;
+import io.github.colinzhu.taskqueue.polling.internal.TaskQueueMetrics;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;

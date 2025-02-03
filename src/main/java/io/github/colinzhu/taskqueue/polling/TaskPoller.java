@@ -4,7 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.github.colinzhu.taskqueue.internal.TaskEntity;
-import io.github.colinzhu.taskqueue.internal.TaskQueueRepo;
+import io.github.colinzhu.taskqueue.internal.TaskRepo;
+import io.github.colinzhu.taskqueue.polling.internal.TaskQueueMetrics;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
@@ -39,6 +40,7 @@ public class TaskPoller<T> {
     private boolean isNoTaskWaitingForTimer = false;
     private boolean isWaiting = false;
     private final TaskPollerRepo taskPollerRepo = new TaskPollerRepo();
+    private final TaskRepo taskRepo = new TaskRepo();
 
     public TaskPoller(Vertx vertx, JDBCPool pool, TaskPollerConfig<T> config) {
         this.vertx = vertx;
@@ -189,7 +191,7 @@ public class TaskPoller<T> {
     }
 
     private Future<Integer> fail(SqlConnection sqlConnection, long taskId, String processResult) {
-        return taskPollerRepo.updateStatusFromWithResult(sqlConnection, taskId, PROCESSING, ERROR, processResult);
+        return taskRepo.updateStatusFromWithResult(sqlConnection, taskId, PROCESSING, ERROR, processResult);
     }
 
     private void rerunWithDelayIfNecessary(Duration delay) {
