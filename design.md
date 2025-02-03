@@ -207,62 +207,46 @@ class CustomTaskProcessor implements Function<Task<T>, Future<?>> {
 
 ## 8. 模块划分
 
-系统被划分为以下几个相对独立的模块：
+系统被划分为以下几个主要模块：
 
 ### 8.1 模块概览
 
-1. **核心服务模块（Core Service）**
-   - `TaskQueueService` 接口及其实现
+1. **核心模块（core/internal）**
+   - 包路径：`io.github.colinzhu.taskqueue` 和 `io.github.colinzhu.taskqueue.internal`
+   - 主要组件：
+     - `TaskQueueService` - 任务队列服务接口
+     - `TaskQueueServiceImpl` - 服务实现类
+     - `TaskEntity` - 内部任务实体
+     - `TaskStatus` - 任务状态枚举（包级私有）
+     - `TaskRepo` - 数据访问层
    - 主要职责：
-     - 任务的基本操作（入队、完成、重入队）
-     - 事务管理
-     - 状态管理
-   - 这是整个系统的核心，提供基础的任务队列操作API
+     - 提供任务队列的核心操作
+     - 管理任务状态和生命周期
+     - 处理数据持久化
+     - 提供基础工具方法
 
-2. **任务轮询模块（Task Polling）**
-   - `TaskPoller` 和 `TaskPollerVerticle`
+2. **轮询模块（polling）**
+   - 包路径：`io.github.colinzhu.taskqueue.polling`
+   - 主要组件：
+     - `TaskPoller` - 任务轮询器
+     - `TaskPollerVerticle` - 轮询Verticle
+     - `TaskPollerConfig` - 轮询配置
    - 主要职责：
      - 任务发现和获取
-     - 轮询调度
+     - 任务处理和执行
+     - 轮询生命周期管理
      - 并发控制
-     - 生命周期管理
-   - 负责从数据库中检索和获取待处理的任务
 
-3. **任务处理模块（Task Processing）**
-   - `TaskProcessorVerticle`
-   - `Task<T>` 数据模型
+3. **支持模块（support）**
+   - 包路径：`io.github.colinzhu.taskqueue.support`
+   - 主要组件：
+     - `TaskQueueSupportService` - 支持服务接口
+     - `TaskQueueSupportHandler` - Web处理器
    - 主要职责：
-     - 任务执行
-     - 结果处理
-     - 异常处理
-     - 重试逻辑
-
-4. **支持服务模块（Support Service）**
-   - `TaskQueueSupportService`
-   - Web UI 界面
-   - 主要职责：
-     - 任务监控
-     - 状态管理
-     - 手动干预
-     - 统计报表
-
-5. **存储模块（Storage）**
-   - 数据库访问层
-   - SQL 查询实现
-   - 主要职责：
-     - 数据持久化
-     - 并发控制
-     - 事务管理
-     - 数据库适配
-
-6. **公共模块（Common）**
-   - 状态枚举
-   - 工具类
-   - 配置类
-   - 主要职责：
-     - 共享常量
-     - 工具方法
-     - 配置管理
+     - 提供管理界面
+     - 任务监控和统计
+     - 问题任务处理
+     - 系统维护功能
 
 ### 8.2 模块架构图
 
@@ -273,56 +257,70 @@ class CustomTaskProcessor implements Function<Task<T>, Future<?>> {
            ↑               ↑                ↑
            │               │                │
 ┌─────────────┐    ┌──────────────┐  ┌──────────────┐
-│ 核心服务模块 │    │  任务轮询模块 │  │ 任务处理模块  │
-│Core Service │    │Task Polling  │  │Task Process  │
+│  核心模块    │    │   轮询模块     │  │  支持模块     │
+│core/internal│    │   polling    │  │  support     │
 └─────────────┘    └──────────────┘  └──────────────┘
-           ↑               ↑                ↑
-           │               │                │
-┌─────────────────────────────────────────────────────┐
-│                    公共模块 Common                   │
-└─────────────────────────────────────────────────────┘
-           ↑               ↑                ↑
-           │               │                │
-┌─────────────────────────────────────────────────────┐
-│                    存储模块 Storage                  │
-└─────────────────────────────────────────────────────┘
-                          ↑
-                          │
-┌─────────────────────────────────────────────────────┐
-│                  支持服务模块 Support                │
-└─────────────────────────────────────────────────────┘
 ```
 
-### 8.3 模块间关系
+### 8.3 模块间依赖关系
 
-1. **松耦合设计**
-   - 各模块通过接口进行交互
-   - 模块间依赖清晰可控
-   - 便于独立开发和测试
+1. **核心模块（core/internal）**
+   - 不依赖其他模块
+   - 通过 module-info.java 控制包的可见性
+   - 内部实现放在 internal 包中
 
-2. **依赖关系**
-   - 核心服务模块是基础，其他模块都依赖于它
-   - 存储模块被其他模块共同使用
-   - 公共模块提供跨模块的共享功能
+2. **轮询模块（polling）**
+   - 依赖核心模块
+   - 通过 module-info.java 获得对 core 包的访问权限
+   - 实现任务处理逻辑
 
-3. **扩展性**
-   - 每个模块都可以独立扩展
-   - 支持不同的实现方式
-   - 便于添加新功能
+3. **支持模块（support）**
+   - 依赖核心模块
+   - 通过 module-info.java 获得对 core 包的访问权限
+   - 实现Web界面
 
-### 8.4 模块划分优势
+### 8.4 访问控制
 
-1. **维护性好**
-   - 职责划分清晰
-   - 代码组织结构清晰
-   - 便于问题定位
+1. **包级私有类**
+   - `TaskStatus` - 仅在 internal 包内可见
+   - `TaskEntity` - 仅在 internal 包内可见
+   - `TaskQueueServiceImpl` - 仅在根包内可见
+   - `TaskRepo` - 仅在 internal 包内可见
 
-2. **可测试性强**
-   - 模块边界清晰
-   - 便于编写单元测试
-   - 支持模块级集成测试
+2. **公开接口**
+   - `TaskQueueService` - 主要服务接口
+   - `TaskQueueSupportService` - 支持服务接口
 
-3. **扩展性好**
-   - 支持模块级别的定制
-   - 便于增加新功能
-   - 支持不同实现的替换 
+3. **模块化控制**
+   - 通过 module-info.java 严格控制包的可见性
+   - 只向外暴露必要的 API
+   - 内部实现完全隐藏
+
+## 9. 最佳实践
+
+### 9.1 事务处理
+
+```java
+pool.withTransaction(conn -> 
+    // 1. 执行业务逻辑
+    businessLogic(conn)
+        // 2. 入队任务
+        .compose(result -> 
+            taskQueueService.enqueue(conn, "queue", "ref", payload))
+);
+```
+
+### 9.2 任务处理器实现
+
+```java
+class CustomTaskProcessor implements Function<Task<T>, Future<?>> {
+    @Override
+    public Future<?> apply(Task<T> task) {
+        return Future.future(promise -> {
+            // 1. 解析任务数据
+            // 2. 执行业务逻辑
+            // 3. 更新任务状态
+        });
+    }
+}
+``` 

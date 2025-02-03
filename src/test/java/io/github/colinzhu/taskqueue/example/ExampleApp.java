@@ -94,11 +94,11 @@ public class ExampleApp {
                             throw new RuntimeException(e);
                         }
                         if (seconds >= maxSeconds) {
-                            System.out.println("Reached maxSeconds=" + maxSeconds + ", stopped immediately");
+                            log.info("Reached maxSeconds={}, stopped immediately", maxSeconds);
                             break;
                         }
                     }
-                    System.out.println("Successfully stopped vertx");
+                    log.info("Successfully stopped vertx");
                 })
         );
     }

@@ -145,8 +145,8 @@ public class TaskPoller<T> {
     }
 
     private void processBatch(List<TaskEntity> batch, String pollId, long fetchStart) {
-        List<Long> taskIdList = batch.stream().map(TaskEntity::getId).collect(Collectors.toList());
-        List<String> refNumberList = batch.stream().map(TaskEntity::getReferenceNumber).collect(Collectors.toList());
+        List<Long> taskIdList = batch.stream().map(TaskEntity::getId).toList();
+        List<String> refNumberList = batch.stream().map(TaskEntity::getReferenceNumber).toList();
         String logTasks = "size=%d, taskIdList=%s, refList=%s".formatted(batch.size(), taskIdList, refNumberList);
         log.debug("{} tasks fetched, {} Time:{}ms", pollId, logTasks, System.currentTimeMillis() - fetchStart);
 
