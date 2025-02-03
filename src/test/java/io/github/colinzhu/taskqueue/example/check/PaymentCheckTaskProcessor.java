@@ -1,6 +1,6 @@
 package io.github.colinzhu.taskqueue.example.check;
 
-import io.github.colinzhu.taskqueue.Task;
+import io.github.colinzhu.taskqueue.polling.Task;
 import io.github.colinzhu.taskqueue.TaskQueueService;
 import io.github.colinzhu.taskqueue.example.Payment;
 import io.vertx.core.Future;

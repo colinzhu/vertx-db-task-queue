@@ -3,6 +3,11 @@ package io.github.colinzhu.taskqueue;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import io.github.colinzhu.taskqueue.example.Payment;
+import io.github.colinzhu.taskqueue.internal.TaskStatus;
+import io.github.colinzhu.taskqueue.polling.Task;
+import io.github.colinzhu.taskqueue.polling.TaskPollerConfig;
+import io.github.colinzhu.taskqueue.polling.TaskPollerVerticle;
+import io.github.colinzhu.taskqueue.polling.TaskProcessorVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -23,8 +28,8 @@ import java.time.OffsetDateTime;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static io.github.colinzhu.taskqueue.TaskStatus.COMPLETED;
-import static io.github.colinzhu.taskqueue.TaskStatus.CREATED;
+import static io.github.colinzhu.taskqueue.internal.TaskStatus.COMPLETED;
+import static io.github.colinzhu.taskqueue.internal.TaskStatus.CREATED;
 import static org.slf4j.Logger.ROOT_LOGGER_NAME;
 
 @ExtendWith(VertxExtension.class)
@@ -39,8 +44,8 @@ class TaskQueueTest {
         setLogLevel(ROOT_LOGGER_NAME, Level.INFO);
         setLogLevel("com.mchange.v2.resourcepool.BasicResourcePool", Level.INFO);
         setLogLevel("io.github.colinzhu.taskqueue", Level.DEBUG);
-        setLogLevel("io.github.colinzhu.taskqueue.TaskQueueRepo", Level.DEBUG);
-        setLogLevel("io.github.colinzhu.taskqueue.TaskPoller", Level.DEBUG);
+        setLogLevel("io.github.colinzhu.taskqueue.internal.TaskQueueRepo", Level.DEBUG);
+        setLogLevel("io.github.colinzhu.taskqueue.polling.TaskPoller", Level.DEBUG);
 
         taskQueueService = TaskQueueService.taskQueue(vertx);
         Database db = Database.get(Database.H2_MEM);

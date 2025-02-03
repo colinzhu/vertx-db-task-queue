@@ -1,4 +1,4 @@
-package io.github.colinzhu.taskqueue;
+package io.github.colinzhu.taskqueue.support;
 
 import io.vertx.core.Future;
 import io.vertx.sqlclient.SqlConnection;

@@ -1,24 +1,35 @@
-package io.github.colinzhu.taskqueue;
+package io.github.colinzhu.taskqueue.polling;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.github.colinzhu.taskqueue.internal.TaskEntity;
+import io.github.colinzhu.taskqueue.internal.TaskQueueRepo;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.eventbus.Message;
 import io.vertx.jdbcclient.JDBCPool;
+import io.vertx.sqlclient.SqlConnection;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import static io.github.colinzhu.taskqueue.internal.TaskStatus.ERROR;
+import static io.github.colinzhu.taskqueue.internal.TaskStatus.PROCESSING;
+
 @Slf4j
 public class TaskPoller<T> {
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().registerModule(new JavaTimeModule());
     private final Vertx vertx;
     private final JDBCPool pool;
     private final TaskPollerConfig<T> config;
-    private final TaskQueueServiceImpl taskQueueServiceImpl;
     private final String pollerId;
     private final String pollerInstance;
     private final TaskQueueMetrics metrics = new TaskQueueMetrics();
@@ -27,12 +38,12 @@ public class TaskPoller<T> {
     private long timerId = -1;
     private boolean isNoTaskWaitingForTimer = false;
     private boolean isWaiting = false;
+    private final TaskPollerRepo taskPollerRepo = new TaskPollerRepo();
 
     public TaskPoller(Vertx vertx, JDBCPool pool, TaskPollerConfig<T> config) {
         this.vertx = vertx;
         this.pool = pool;
         this.config = config;
-        this.taskQueueServiceImpl = new TaskQueueServiceImpl(vertx);
         this.pollerInstance = UUID.randomUUID().toString();
         this.pollerId = "poller-" + config.getQueueName() + "-" + pollerInstance;
 
@@ -49,6 +60,24 @@ public class TaskPoller<T> {
         });
 
         log.info("{} created: {}", pollerId, config);
+    }
+
+    private static <T> Task<T> convertTaskEntityToTask(TaskEntity taskEntity, Class<T> payloadClass) {
+        try {
+            return new Task<>(
+                    taskEntity.getId(),
+                    taskEntity.getAttempt(),
+                    OBJECT_MAPPER.readValue(taskEntity.getPayload(), payloadClass)
+            );
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("failed to deserialize JSON string to object. JSON: " + taskEntity.getPayload(), e);
+        }
+    }
+
+    private static String getStackTrace(Throwable t) {
+        StringWriter sw = new StringWriter();
+        t.printStackTrace(new PrintWriter(sw));
+        return sw.toString();
     }
 
     public void start() {
@@ -96,7 +125,7 @@ public class TaskPoller<T> {
         isStopped = false;
         long start = System.currentTimeMillis();
         String pollId = pollerId + "-" + start;
-        taskQueueServiceImpl.fetchBatch2(pool, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay(), pollerInstance)
+        fetchBatch2(pool, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay(), pollerInstance)
                 .onSuccess(batch -> {
                     long end = System.currentTimeMillis();
                     recordTime("fetch.batch", start, "result", "success");
@@ -137,7 +166,7 @@ public class TaskPoller<T> {
     private Future<?> processSingleTask(TaskEntity taskEntity) {
         long start = System.currentTimeMillis();
         return Future.succeededFuture()
-                .map(res -> TaskQueueUtils.convertTaskEntityToTask(taskEntity, config.getPayloadClass()))
+                .map(res -> convertTaskEntityToTask(taskEntity, config.getPayloadClass()))
                 .compose(tTask -> vertx.eventBus().request(taskEntity.getQueueName(), tTask, new DeliveryOptions().setSendTimeout(config.getTimeout().toMillis())))
                 .onSuccess(res -> {
                     long end = System.currentTimeMillis();
@@ -152,11 +181,15 @@ public class TaskPoller<T> {
 
     private Future<Message<Object>> markTaskAsError(TaskEntity taskEntity, long start, Throwable err) {
         // for recover to mark the task as ERROR, it needs to be in a separate connection
-        return pool.withConnection(conn -> taskQueueServiceImpl.fail(conn, taskEntity.getId(), TaskQueueUtils.getStackTrace(err))
+        return pool.withConnection(conn -> fail(conn, taskEntity.getId(), getStackTrace(err))
                         .onSuccess(count -> log.info("{} updated task status to ERROR, taskId={}, time={}ms", pollerId, taskEntity.getId(), System.currentTimeMillis() - start))
                         .onFailure(e -> log.error("{} failed to update task status to ERROR, taskId={}", pollerId, taskEntity.getId(), e))
                         .onComplete(result -> recordTime("process.single", start,"result", result.succeeded() ? "success" : "failure")))
                 .map(count -> null); // in order to convert Future<Integer> to align with eventbus.request's return type Future<Message<Object>>
+    }
+
+    private Future<Integer> fail(SqlConnection sqlConnection, long taskId, String processResult) {
+        return taskPollerRepo.updateStatusFromWithResult(sqlConnection, taskId, PROCESSING, ERROR, processResult);
     }
 
     private void rerunWithDelayIfNecessary(Duration delay) {
@@ -189,4 +222,13 @@ public class TaskPoller<T> {
     private void recordTime(String type, long startTime, String... tags) {
         metrics.recordTime("taskqueue.poller." + type, config.getQueueName(), startTime, tags);
     }
+
+    private Future<List<TaskEntity>> fetchBatch(JDBCPool pool, String queueName, int batchSize, Duration nextProcessDelay) {
+        return pool.withTransaction(sqlConnection -> taskPollerRepo.checkout(sqlConnection, queueName, batchSize, nextProcessDelay));
+    }
+
+    private Future<List<TaskEntity>> fetchBatch2(JDBCPool pool, String queueName, int batchSize, Duration nextProcessDelay, String pollerInstance) {
+        return taskPollerRepo.checkout2(pool, queueName, batchSize, nextProcessDelay, pollerInstance);
+    }
+
 }

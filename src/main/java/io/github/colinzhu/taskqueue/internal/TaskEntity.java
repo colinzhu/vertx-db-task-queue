@@ -1,4 +1,4 @@
-package io.github.colinzhu.taskqueue;
+package io.github.colinzhu.taskqueue.internal;
 
 import lombok.*;
 
@@ -7,7 +7,7 @@ import java.time.OffsetDateTime;
 
 @Value
 @Builder
-class TaskEntity implements Serializable {
+public class TaskEntity implements Serializable {
     long id;
     String referenceNumber;
     String queueName;

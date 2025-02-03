@@ -4,18 +4,17 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.github.colinzhu.taskqueue.internal.TaskQueueRepo;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
-import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.SqlConnection;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.util.List;
 
-import static io.github.colinzhu.taskqueue.TaskStatus.*;
+import static io.github.colinzhu.taskqueue.internal.TaskStatus.*;
 
 @Slf4j
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
@@ -79,17 +78,5 @@ class TaskQueueServiceImpl implements TaskQueueService {
         // because:
         // 1. usually reenqueue should have a delay
         // 2. there is no direct queue name to send notification
-    }
-
-    public Future<Integer> fail(SqlConnection sqlConnection, long taskId, String processResult) {
-        return taskQueueRepo.updateStatusFromWithResult(sqlConnection, taskId, PROCESSING, ERROR, processResult);
-    }
-
-    Future<List<TaskEntity>> fetchBatch(JDBCPool pool, String queueName, int batchSize, Duration nextProcessDelay) {
-        return pool.withTransaction(sqlConnection -> taskQueueRepo.checkout(sqlConnection, queueName, batchSize, nextProcessDelay));
-    }
-
-    Future<List<TaskEntity>> fetchBatch2(JDBCPool pool, String queueName, int batchSize, Duration nextProcessDelay, String pollerInstance) {
-        return taskQueueRepo.checkout2(pool, queueName, batchSize, nextProcessDelay, pollerInstance);
     }
 }

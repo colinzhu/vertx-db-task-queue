@@ -1,5 +1,7 @@
-package io.github.colinzhu.taskqueue;
+package io.github.colinzhu.taskqueue.support;
 
+import io.github.colinzhu.taskqueue.internal.TaskEntity;
+import io.github.colinzhu.taskqueue.internal.TaskStatus;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 import io.vertx.sqlclient.Row;

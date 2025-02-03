@@ -1,11 +1,11 @@
-package io.github.colinzhu.taskqueue;
+package io.github.colinzhu.taskqueue.polling;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.jdbcclient.JDBCPool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import io.vertx.core.Vertx;
+
 import java.util.function.Supplier;
 
 @Slf4j
@@ -44,13 +44,5 @@ public class TaskPollerVerticle<T> extends AbstractVerticle {
     @Override
     public String toString() {
         return this.getClass().getSimpleName() + "-" + config.getQueueName() + "-" + Integer.toHexString(hashCode());
-    }
-
-    static void pausePoller(Vertx vertx, String queueName) {
-        vertx.eventBus().publish(POLLER_PAUSE_PREFIX + queueName, null);
-    }
-
-    static void startPoller(Vertx vertx, String queueName) {
-        vertx.eventBus().publish(POLLER_START_PREFIX + queueName, null);
     }
 }

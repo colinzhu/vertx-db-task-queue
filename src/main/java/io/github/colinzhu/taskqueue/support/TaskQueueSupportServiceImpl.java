@@ -1,5 +1,6 @@
-package io.github.colinzhu.taskqueue;
+package io.github.colinzhu.taskqueue.support;
 
+import io.github.colinzhu.taskqueue.internal.TaskStatus;
 import io.vertx.core.Future;
 import io.vertx.sqlclient.SqlConnection;
 import lombok.AccessLevel;
@@ -10,8 +11,8 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Set;
 
-import static io.github.colinzhu.taskqueue.TaskStatus.ERROR;
-import static io.github.colinzhu.taskqueue.TaskStatus.POISON;
+import static io.github.colinzhu.taskqueue.internal.TaskStatus.ERROR;
+import static io.github.colinzhu.taskqueue.internal.TaskStatus.POISON;
 
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PACKAGE)

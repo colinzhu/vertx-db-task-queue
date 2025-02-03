@@ -1,4 +1,4 @@
-package io.github.colinzhu.taskqueue;
+package io.github.colinzhu.taskqueue.polling;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;

@@ -1,4 +1,4 @@
-package io.github.colinzhu.taskqueue;
+package io.github.colinzhu.taskqueue.support;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -29,6 +29,8 @@ public class TaskQueueSupportHandler implements Supplier<Router> {
     private final Vertx vertx;
     private final JDBCPool pool;
     private final TaskQueueSupportService taskQueueSupportService;
+    private static final String POLLER_PAUSE_PREFIX = "taskqueue.poller.pause.";
+    private static final String POLLER_START_PREFIX = "taskqueue.poller.start.";
 
     @Override
     public Router get() {
@@ -111,13 +113,23 @@ public class TaskQueueSupportHandler implements Supplier<Router> {
 
     private void pollerPause(RoutingContext routingContext) {
         String queueName = routingContext.pathParam("queueName");
-        TaskPollerVerticle.pausePoller(vertx, queueName);
+        pausePoller(vertx, queueName);
         routingContext.response().end(Json.encode("paused request sent for: " + queueName));
     }
 
     private void pollerStart(RoutingContext routingContext) {
         String queueName = routingContext.pathParam("queueName");
-        TaskPollerVerticle.startPoller(vertx, queueName);
+        startPoller(vertx, queueName);
         routingContext.response().end(Json.encode("start request sent for: " + queueName));
     }
+
+
+    static void pausePoller(Vertx vertx, String queueName) {
+        vertx.eventBus().publish(POLLER_PAUSE_PREFIX + queueName, null);
+    }
+
+    static void startPoller(Vertx vertx, String queueName) {
+        vertx.eventBus().publish(POLLER_START_PREFIX + queueName, null);
+    }
+
 }
