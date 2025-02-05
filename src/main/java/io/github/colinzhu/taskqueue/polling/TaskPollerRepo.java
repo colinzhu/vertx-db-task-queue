@@ -102,7 +102,14 @@ class TaskPollerRepo {
         return SqlTemplate.forUpdate(sqlConnection, SQL_CHECK_OUT_2_STEP1)
                 .execute(Map.of("now", OffsetDateTime.now(), "queueName", queueName, "batchSize", batchSize, "newNextProcessTime", newNextProcessTime, "pollerInstance", pollerInstance))
                 .map(SqlResult::rowCount)
-                .onSuccess(count -> log.info("tasks checkout2step1update success, queue={}, pollerInstance={}, step1updateCount={}, time={}ms", queueName, pollerInstance, count, System.currentTimeMillis() - start))
+                .onSuccess(count -> {
+                    String msg = "tasks checkout2step1update success, queue={}, pollerInstance={}, step1updateCount={}, time={}ms";
+                    if (0 == count) { // debug only
+                        log.debug(msg, queueName, pollerInstance, count, System.currentTimeMillis() - start);
+                    } else { // info
+                        log.info(msg, queueName, pollerInstance, count, System.currentTimeMillis() - start);
+                    }
+                })
                 .onFailure(err -> log.error("tasks checkout2step1update failed, queue={}, pollerInstance={}, time={}ms", queueName, pollerInstance, System.currentTimeMillis() - start, err));
     }
 

@@ -3,6 +3,7 @@ package io.github.colinzhu.taskqueue.support;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.github.colinzhu.taskqueue.internal.EventAddress;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.Json;
@@ -29,8 +30,6 @@ public class TaskQueueSupportHandler implements Supplier<Router> {
     private final Vertx vertx;
     private final JDBCPool pool;
     private final TaskQueueSupportService taskQueueSupportService;
-    private static final String POLLER_PAUSE_PREFIX = "taskqueue.poller.pause.";
-    private static final String POLLER_START_PREFIX = "taskqueue.poller.start.";
 
     @Override
     public Router get() {
@@ -125,11 +124,11 @@ public class TaskQueueSupportHandler implements Supplier<Router> {
 
 
     static void pausePoller(Vertx vertx, String queueName) {
-        vertx.eventBus().publish(POLLER_PAUSE_PREFIX + queueName, null);
+        vertx.eventBus().publish(EventAddress.POLLER_PAUSE_PREFIX + queueName, null);
     }
 
     static void startPoller(Vertx vertx, String queueName) {
-        vertx.eventBus().publish(POLLER_START_PREFIX + queueName, null);
+        vertx.eventBus().publish(EventAddress.POLLER_START_PREFIX + queueName, null);
     }
 
 }
