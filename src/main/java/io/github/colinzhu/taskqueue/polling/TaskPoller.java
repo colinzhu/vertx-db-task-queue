@@ -46,7 +46,7 @@ public class TaskPoller<T> {
         this.vertx = vertx;
         this.pool = pool;
         this.config = config;
-        this.pollerInstance = UUID.randomUUID().toString();
+        this.pollerInstance = "poller-" +  UUID.randomUUID(); // add "poller-" prefix to solve oracle storing uuid issue
         this.pollerId = "poller-" + config.getQueueName() + "-" + pollerInstance;
 
         String eventBusAddress = "poller." + config.getQueueName();
@@ -68,6 +68,7 @@ public class TaskPoller<T> {
         try {
             return new Task<>(
                     taskEntity.getId(),
+                    taskEntity.getQueueName(),
                     taskEntity.getAttempt(),
                     OBJECT_MAPPER.readValue(taskEntity.getPayload(), payloadClass)
             );
