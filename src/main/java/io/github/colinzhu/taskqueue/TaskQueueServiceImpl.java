@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.github.colinzhu.taskqueue.internal.TaskRepo;
+import io.github.colinzhu.taskqueue.polling.Task;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.sqlclient.SqlConnection;
@@ -53,28 +54,28 @@ class TaskQueueServiceImpl implements TaskQueueService {
     }
 
     @Override
-    public Future<Integer> complete(SqlConnection sqlConnection, long taskId) {
-        return complete(sqlConnection, taskId, null);
+    public <T> Future<Integer> complete(SqlConnection sqlConnection, Task<T> task) {
+        return complete(sqlConnection, task, null);
     }
 
     @Override
-    public Future<Integer> complete(SqlConnection sqlConnection, long taskId, String processResult) {
-        return taskRepo.updateStatusFromWithResult(sqlConnection, taskId, PROCESSING, COMPLETED, processResult);
+    public <T> Future<Integer> complete(SqlConnection sqlConnection, Task<T> task, String processResult) {
+        return taskRepo.updateStatusFromWithResult(sqlConnection, task.getId(), PROCESSING, COMPLETED, processResult);
     }
 
     @Override
-    public Future<Integer> completeDelete(SqlConnection sqlConnection, long taskId) {
-        return taskRepo.completeDelete(sqlConnection, taskId);
+    public <T> Future<Integer> completeDelete(SqlConnection sqlConnection, Task<T> task) {
+        return taskRepo.completeDelete(sqlConnection, task.getId());
     }
 
     @Override
-    public Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay) {
-        return reenqueue(sqlConnection, taskId, delay, null);
+    public <T> Future<Integer> reenqueue(SqlConnection sqlConnection, Task<T> task, Duration delay) {
+        return reenqueue(sqlConnection, task, delay, null);
     }
 
     @Override
-    public Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay, String processResult) {
-        return taskRepo.reenqueue(sqlConnection, taskId, delay, processResult);
+    public <T> Future<Integer> reenqueue(SqlConnection sqlConnection, Task<T> task, Duration delay, String processResult) {
+        return taskRepo.reenqueue(sqlConnection, task.getId(), delay, processResult);
         // not sending new task notification to poller, the task will wait for some time before being processed, max noTaskInterval
         // because:
         // 1. usually reenqueue should have a delay

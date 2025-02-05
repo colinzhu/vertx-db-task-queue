@@ -79,11 +79,11 @@ class TaskQueueTest {
             log.info("Processing {}", task.getPayload());
             Function<SqlConnection, Future<Integer>> function;
             if ("REENQUEUE".equals(afterProcessAction)) {
-                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5))); // when verify in 1 sec, not yet in processing status
+                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.reenqueue(conn, task, Duration.ofSeconds(5))); // when verify in 1 sec, not yet in processing status
             } else if ("COMPLETE".equals(afterProcessAction)) {
-                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.complete(conn, task.getId()));
+                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.complete(conn, task));
             } else {
-                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.completeDelete(conn, task.getId()));
+                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.completeDelete(conn, task));
             }
             return pool.withTransaction(function);
         };
@@ -142,13 +142,13 @@ class TaskQueueTest {
             // simulate task already finished by another poller (payment status updated to "ABC", task deleted
             Future<Integer> futureOfAnother;
             if ("COMPLETE_DELETE".equals(afterProcessAction)) {
-                futureOfAnother = pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskQueueService.completeDelete(conn, task.getId())));
+                futureOfAnother = pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskQueueService.completeDelete(conn, task)));
             } else {
-                futureOfAnother = pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskQueueService.complete(conn, task.getId())));
+                futureOfAnother = pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskQueueService.complete(conn, task)));
             }
 
             Function<SqlConnection, Future<Integer>> function = conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_CURRENT_POLLER")
-                    .compose(p -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5)));
+                    .compose(p -> taskQueueService.reenqueue(conn, task, Duration.ofSeconds(5)));
 
             return futureOfAnother.compose(any -> pool.withTransaction(function));
         };
@@ -200,7 +200,7 @@ class TaskQueueTest {
         Function<Task<Payment>, Future<?>> taskProcessor = task -> {
             log.info("Processing {}", task.getPayload());
             return pool.withTransaction(conn -> updatePayment(conn, task.getPayload())
-                    .compose(p -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5))));
+                    .compose(p -> taskQueueService.reenqueue(conn, task, Duration.ofSeconds(5))));
         };
 
         // prepare a poller
@@ -262,7 +262,7 @@ class TaskQueueTest {
                             throw new RuntimeException("simulate exception within transaction");
                         }
                         return updateCount;
-                    }).compose(count -> taskQueueService.complete(conn, task.getId()));
+                    }).compose(count -> taskQueueService.complete(conn, task));
             return pool.withTransaction(updatePaymentFunc);
         };
 

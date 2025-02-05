@@ -38,9 +38,9 @@ public class PaymentReleaseTaskProcessor implements Function<Task<Payment>, Futu
         if ("success".equals(result)) {
             return txn.query("UPDATE PAYMENT SET STATUS = 'RELEASED' WHERE ID = " + task.getPayload().getId())
                     .execute()
-                    .compose(res -> taskQueueService.complete(txn, task.getId()));
+                    .compose(res -> taskQueueService.complete(txn, task));
         } else { // example to use reenqueue as a retry
-            return taskQueueService.reenqueue(txn, task.getId(), Duration.ofSeconds(2), "failed to release, retry in 2 sec, err=" + result);
+            return taskQueueService.reenqueue(txn, task, Duration.ofSeconds(2), "failed to release, retry in 2 sec, err=" + result);
         }
     }
 
