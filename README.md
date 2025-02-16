@@ -101,7 +101,7 @@ so that if any step fails, both can be rolled back.
 Example:
 ```java
 pool.withTransaction(conn -> insertPayment(conn, p)
-    .compose(payment -> taskQueueService.enqueue(conn, "payment.check", "REF_" + payment.getId(), payment)))
+    .compose(payment -> taskEnqueueService.enqueue(conn, "payment.check", "REF_" + payment.getId(), payment)))
 ```
 Create a `TaskProcessorVerticle` to process a task, which is retrieved from event bus
 Create a `TaskPollerVerticle` to fetch tasks from a queue, and send to the `TaskProcessorVerticle` through event bus
@@ -129,7 +129,7 @@ Example:
 ```java
 txn.query("UPDATE PAYMENT SET STATUS = 'PENDING_RELEASE' WHERE ID = " + payment.getId())
     .execute()
-    .compose(res -> taskQueueService.complete(txn, task.getId()));
+    .compose(res -> taskEnqueueService.complete(txn, task.getId()));
 ```
 
 ## Task status

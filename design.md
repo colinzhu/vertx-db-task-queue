@@ -174,7 +174,7 @@ pool.withTransaction(conn ->
     businessLogic(conn)
         // 2. 入队任务
         .compose(result -> 
-            taskQueueService.enqueue(conn, "queue", "ref", payload))
+            taskEnqueueService.enqueue(conn, "queue", "ref", payload))
 );
 ```
 
@@ -306,7 +306,7 @@ pool.withTransaction(conn ->
     businessLogic(conn)
         // 2. 入队任务
         .compose(result -> 
-            taskQueueService.enqueue(conn, "queue", "ref", payload))
+            taskEnqueueService.enqueue(conn, "queue", "ref", payload))
 );
 ```
 

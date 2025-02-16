@@ -2,12 +2,14 @@ package io.github.colinzhu.taskqueue;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
+import io.github.colinzhu.taskqueue.enqueue.TaskEnqueueService;
 import io.github.colinzhu.taskqueue.example.Payment;
 import io.github.colinzhu.taskqueue.internal.TaskStatus;
-import io.github.colinzhu.taskqueue.polling.Task;
 import io.github.colinzhu.taskqueue.polling.TaskPollerConfig;
-import io.github.colinzhu.taskqueue.polling.verticle.TaskPollerVerticle;
-import io.github.colinzhu.taskqueue.polling.verticle.TaskProcessorVerticle;
+import io.github.colinzhu.taskqueue.polling.TaskPollerVerticle;
+import io.github.colinzhu.taskqueue.processing.TaskProcessService;
+import io.github.colinzhu.taskqueue.processing.TaskProcessor;
+import io.github.colinzhu.taskqueue.processing.TaskProcessorVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -37,7 +39,8 @@ import static org.slf4j.Logger.ROOT_LOGGER_NAME;
 class TaskQueueTest {
     private static JDBCPool pool;
     private static Supplier<JDBCPool> poolSupplier;
-    private static TaskQueueService taskQueueService;
+    private static TaskEnqueueService taskEnqueueService;
+    private static TaskProcessService taskProcessService;
     private static final String POLLER_PAUSE_PREFIX = "taskqueue.poller.pause.";
     @BeforeAll
     static void init(Vertx vertx, VertxTestContext testContext) {
@@ -47,7 +50,8 @@ class TaskQueueTest {
         setLogLevel("io.github.colinzhu.taskqueue.internal.TaskRepo", Level.DEBUG);
         setLogLevel("io.github.colinzhu.taskqueue.polling.TaskPoller", Level.DEBUG);
 
-        taskQueueService = TaskQueueService.taskQueue(vertx);
+        taskEnqueueService = TaskEnqueueService.taskQueue(vertx);
+        taskProcessService = TaskProcessService.getInstance();
         Database db = Database.get(Database.H2_MEM);
         pool = db.getJdbcPool(vertx);
         db.createTables(pool).onComplete(ar -> testContext.completeNow());
@@ -74,16 +78,16 @@ class TaskQueueTest {
         Payment payment = new Payment("CREATED", OffsetDateTime.now());
 
         // prepare a task processor
-        Function<Task<Payment>, Future<?>> taskProcessor = task -> {
+        TaskProcessor<Payment> taskProcessor = task -> {
             Assertions.assertEquals(payment.getCreateTime().toInstant(), task.getPayload().getCreateTime().toInstant(), "the task payload object should be same as the original object");
             log.info("Processing {}", task.getPayload());
             Function<SqlConnection, Future<Integer>> function;
             if ("REENQUEUE".equals(afterProcessAction)) {
-                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.reenqueue(conn, task, Duration.ofSeconds(5))); // when verify in 1 sec, not yet in processing status
+                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskProcessService.reenqueue(conn, task, Duration.ofSeconds(5))); // when verify in 1 sec, not yet in processing status
             } else if ("COMPLETE".equals(afterProcessAction)) {
-                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.complete(conn, task));
+                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskProcessService.complete(conn, task));
             } else {
-                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.completeDelete(conn, task));
+                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskProcessService.completeDelete(conn, task));
             }
             return pool.withTransaction(function);
         };
@@ -104,7 +108,7 @@ class TaskQueueTest {
 
         // enqueue a task
         log.info("Payment created: {}", payment);
-        Future<Long> enqueueTask = deployVerticles.compose(any -> pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p))));
+        Future<Long> enqueueTask = deployVerticles.compose(any -> pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskEnqueueService.enqueue(conn, queueName, "ref1", p))));
 
         // verify after the poller processing the task
         enqueueTask.onComplete(testContext.succeeding(taskId -> {
@@ -138,17 +142,17 @@ class TaskQueueTest {
         Payment payment = new Payment("CREATED", OffsetDateTime.now());
 
         // prepare a task processor
-        Function<Task<Payment>, Future<?>> taskProcessor = task -> {
+        TaskProcessor<Payment> taskProcessor = task -> {
             // simulate task already finished by another poller (payment status updated to "ABC", task deleted
             Future<Integer> futureOfAnother;
             if ("COMPLETE_DELETE".equals(afterProcessAction)) {
-                futureOfAnother = pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskQueueService.completeDelete(conn, task)));
+                futureOfAnother = pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskProcessService.completeDelete(conn, task)));
             } else {
-                futureOfAnother = pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskQueueService.complete(conn, task)));
+                futureOfAnother = pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskProcessService.complete(conn, task)));
             }
 
             Function<SqlConnection, Future<Integer>> function = conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_CURRENT_POLLER")
-                    .compose(p -> taskQueueService.reenqueue(conn, task, Duration.ofSeconds(5)));
+                    .compose(p -> taskProcessService.reenqueue(conn, task, Duration.ofSeconds(5)));
 
             return futureOfAnother.compose(any -> pool.withTransaction(function));
         };
@@ -167,7 +171,7 @@ class TaskQueueTest {
                 .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(poolSupplier, taskPollerConfig), new DeploymentOptions().setInstances(1)));
 
         // enqueue a task
-        Future<Long> enqueueTask = deployVerticles.compose(any -> pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p))));
+        Future<Long> enqueueTask = deployVerticles.compose(any -> pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskEnqueueService.enqueue(conn, queueName, "ref1", p))));
 
         // verify after the poller processing the task
         enqueueTask.onComplete(testContext.succeeding(taskId -> {
@@ -197,10 +201,10 @@ class TaskQueueTest {
         Checkpoint checkpoint = testContext.checkpoint(2);
 
         // prepare a task processor
-        Function<Task<Payment>, Future<?>> taskProcessor = task -> {
+        TaskProcessor<Payment> taskProcessor = task -> {
             log.info("Processing {}", task.getPayload());
             return pool.withTransaction(conn -> updatePayment(conn, task.getPayload())
-                    .compose(p -> taskQueueService.reenqueue(conn, task, Duration.ofSeconds(5))));
+                    .compose(p -> taskProcessService.reenqueue(conn, task, Duration.ofSeconds(5))));
         };
 
         // prepare a poller
@@ -222,7 +226,7 @@ class TaskQueueTest {
                     vertx.setTimer(1000, id -> {// make sure the poller has already processed the task
                         // after the poller is stopped, enqueue a task
                         Payment payment = new Payment("CREATED", OffsetDateTime.now());
-                        Future<Long> enqueueTask = pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, "Q3-poller-stopped", "ref1", p)));
+                        Future<Long> enqueueTask = pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskEnqueueService.enqueue(conn, "Q3-poller-stopped", "ref1", p)));
 
                         // expect the task should not be processed
                         enqueueTask.onComplete(testContext.succeeding(taskId -> {
@@ -251,7 +255,7 @@ class TaskQueueTest {
         Payment payment = new Payment("CREATED", OffsetDateTime.now());
 
         // prepare a task processor
-        Function<Task<Payment>, Future<?>> taskProcessor = task -> {
+        TaskProcessor<Payment> taskProcessor = task -> {
             log.info("Processing {}", task.getPayload());
             if ("ERR_BEFORE_TXN".equals(errLocation)) {
                 throw new RuntimeException("simulate exception before transaction");
@@ -262,7 +266,7 @@ class TaskQueueTest {
                             throw new RuntimeException("simulate exception within transaction");
                         }
                         return updateCount;
-                    }).compose(count -> taskQueueService.complete(conn, task));
+                    }).compose(count -> taskProcessService.complete(conn, task));
             return pool.withTransaction(updatePaymentFunc);
         };
 
@@ -280,7 +284,7 @@ class TaskQueueTest {
                 .compose(any -> vertx.deployVerticle(() -> new TaskPollerVerticle<>(poolSupplier, taskPollerConfig), new DeploymentOptions().setInstances(1)));
 
         // enqueue a task
-        Future<Long> enqueueTask = deployVerticles.compose(any -> pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskQueueService.enqueue(conn, queueName, "ref1", p))));
+        Future<Long> enqueueTask = deployVerticles.compose(any -> pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskEnqueueService.enqueue(conn, queueName, "ref1", p))));
 
         // verify after the poller processing the task
         enqueueTask.onComplete(testContext.succeeding(taskId -> {

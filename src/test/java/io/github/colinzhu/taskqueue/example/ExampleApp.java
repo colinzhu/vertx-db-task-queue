@@ -3,11 +3,13 @@ package io.github.colinzhu.taskqueue.example;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import io.github.colinzhu.taskqueue.*;
+import io.github.colinzhu.taskqueue.enqueue.TaskEnqueueService;
 import io.github.colinzhu.taskqueue.example.check.PaymentCheckTaskProcessor;
 import io.github.colinzhu.taskqueue.example.release.PaymentReleaseTaskProcessor;
 import io.github.colinzhu.taskqueue.polling.TaskPollerConfig;
-import io.github.colinzhu.taskqueue.polling.verticle.TaskPollerVerticle;
-import io.github.colinzhu.taskqueue.polling.verticle.TaskProcessorVerticle;
+import io.github.colinzhu.taskqueue.polling.TaskPollerVerticle;
+import io.github.colinzhu.taskqueue.processing.TaskProcessService;
+import io.github.colinzhu.taskqueue.processing.TaskProcessorVerticle;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.jvm.ClassLoaderMetrics;
 import io.micrometer.core.instrument.binder.jvm.JvmMemoryMetrics;
@@ -70,8 +72,8 @@ public class ExampleApp {
         TaskPollerConfig<Payment> taskPollerCheckConfig = new TaskPollerConfig<>("payment.check", Payment.class).setBatchSize(20);
         TaskPollerConfig<Payment> taskPollerReleaseConfig = new TaskPollerConfig<>("payment.release", Payment.class).setBatchSize(20);
 
-        vertx.deployVerticle(new TaskProcessorVerticle<>(taskPollerCheckConfig.getQueueName(), () -> new PaymentCheckTaskProcessor(vertx, poolSupplier, TaskQueueService.taskQueue(vertx))))
-                .compose(any -> vertx.deployVerticle(new TaskProcessorVerticle<>(taskPollerReleaseConfig.getQueueName(), () -> new PaymentReleaseTaskProcessor(vertx, poolSupplier, TaskQueueService.taskQueue(vertx)))))
+        vertx.deployVerticle(new TaskProcessorVerticle<>(taskPollerCheckConfig.getQueueName(), () -> new PaymentCheckTaskProcessor(vertx, poolSupplier, TaskEnqueueService.taskQueue(vertx), TaskProcessService.getInstance())))
+                .compose(any -> vertx.deployVerticle(new TaskProcessorVerticle<>(taskPollerReleaseConfig.getQueueName(), () -> new PaymentReleaseTaskProcessor(vertx, poolSupplier, TaskProcessService.getInstance()))))
                 .compose(any -> vertx.deployVerticle(new TaskPollerVerticle<>(poolSupplier, taskPollerCheckConfig)))
                 .compose(any -> vertx.deployVerticle(new TaskPollerVerticle<>(poolSupplier, taskPollerReleaseConfig)))
                 .compose(any -> vertx.deployVerticle(() -> new WebVerticle(pool), new DeploymentOptions().setInstances(2)))

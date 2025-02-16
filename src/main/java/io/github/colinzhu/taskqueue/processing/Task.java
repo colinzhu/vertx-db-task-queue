@@ -1,4 +1,4 @@
-package io.github.colinzhu.taskqueue.polling;
+package io.github.colinzhu.taskqueue.processing;
 
 import lombok.Value;
 

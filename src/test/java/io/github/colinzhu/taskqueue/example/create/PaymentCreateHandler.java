@@ -1,6 +1,6 @@
 package io.github.colinzhu.taskqueue.example.create;
 
-import io.github.colinzhu.taskqueue.TaskQueueService;
+import io.github.colinzhu.taskqueue.enqueue.TaskEnqueueService;
 import io.github.colinzhu.taskqueue.example.Payment;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -22,7 +22,7 @@ import java.util.function.Supplier;
 public class PaymentCreateHandler implements Supplier<Router> {
     private final Vertx vertx;
     private final JDBCPool pool;
-    private final TaskQueueService taskQueueService;
+    private final TaskEnqueueService taskEnqueueService;
 
     @Override
     public Router get() {
@@ -46,7 +46,7 @@ public class PaymentCreateHandler implements Supplier<Router> {
             final int i2 = i;
             futures.add(
                     pool.withTransaction(conn -> insertPayment(conn, p)
-                                    .compose(payment -> taskQueueService.enqueue(conn, "payment.check", "REF_" + payment.getId(), payment)))
+                                    .compose(payment -> taskEnqueueService.enqueue(conn, "payment.check", "REF_" + payment.getId(), payment)))
                             .onSuccess(event -> log.debug("#{} payment and task created, time: {}ms", i2, System.currentTimeMillis() - start))
                             .onFailure(e -> log.error("error creating payment / task", e))
             );
