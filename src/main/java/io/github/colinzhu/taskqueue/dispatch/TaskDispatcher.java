@@ -1,11 +1,12 @@
-package io.github.colinzhu.taskqueue.polling;
+package io.github.colinzhu.taskqueue.dispatch;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.github.colinzhu.taskqueue.internal.TaskEntity;
+import io.github.colinzhu.taskqueue.internal.TaskQueueMetrics;
 import io.github.colinzhu.taskqueue.internal.TaskRepo;
-import io.github.colinzhu.taskqueue.polling.internal.TaskQueueMetrics;
+import io.github.colinzhu.taskqueue.process.Task;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
@@ -26,42 +27,42 @@ import static io.github.colinzhu.taskqueue.internal.TaskStatus.ERROR;
 import static io.github.colinzhu.taskqueue.internal.TaskStatus.PROCESSING;
 
 @Slf4j
-public class TaskPoller<T> {
+public class TaskDispatcher<T> {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().registerModule(new JavaTimeModule());
     private final Vertx vertx;
     private final JDBCPool pool;
-    private final TaskPollerConfig<T> config;
-    private final String pollerId;
-    private final String pollerInstance;
+    private final TaskDispatchConfig<T> config;
+    private final String dispatcherId;
+    private final String dispatcherInstance;
     private final TaskQueueMetrics metrics = new TaskQueueMetrics();
     private boolean isToStop = false;
     private boolean isStopped = true; // default is stopped, until start() is invoked
     private long timerId = -1;
     private boolean isNoTaskWaitingForTimer = false;
     private boolean isWaiting = false;
-    private final TaskPollerRepo taskPollerRepo = new TaskPollerRepo();
+    private final TaskDispatchRepo taskDispatchRepo = new TaskDispatchRepo();
     private final TaskRepo taskRepo = new TaskRepo();
 
-    public TaskPoller(Vertx vertx, JDBCPool pool, TaskPollerConfig<T> config) {
+    public TaskDispatcher(Vertx vertx, JDBCPool pool, TaskDispatchConfig<T> config) {
         this.vertx = vertx;
         this.pool = pool;
         this.config = config;
-        this.pollerInstance = "poller-" +  UUID.randomUUID(); // add "poller-" prefix to solve oracle storing uuid issue
-        this.pollerId = "poller-" + config.getQueueName() + "-" + pollerInstance;
+        this.dispatcherInstance = "poller-" +  UUID.randomUUID(); // add "poller-" prefix to solve oracle storing uuid issue
+        this.dispatcherId = "poller-" + config.getQueueName() + "-" + dispatcherInstance;
 
         String eventBusAddress = "poller." + config.getQueueName();
         vertx.eventBus().consumer(eventBusAddress, message -> {
             // If waiting for a timer, cancel it and fetch tasks immediately
             if (isNoTaskWaitingForTimer) {
                 vertx.cancelTimer(timerId);
-                log.debug("{} new task notification received, taskId={}, timerId={} cancelled, start to fetch tasks. ", pollerId, message.body(), timerId);
-                fetchBatchAndProcess();
+                log.debug("{} new task notification received, taskId={}, timerId={} cancelled, start to fetch tasks. ", dispatcherId, message.body(), timerId);
+                fetchBatchAndDispatch();
             } else {
-                log.debug("{} new task notification received, ignored, taskId={}, because it's not no task and waiting for the timer, isStopped={}", pollerId, message.body(), isStopped);
+                log.debug("{} new task notification received, ignored, taskId={}, because it's not no task and waiting for the timer, isStopped={}", dispatcherId, message.body(), isStopped);
             }
         });
 
-        log.info("{} created: {}", pollerId, config);
+        log.info("{} created: {}", dispatcherId, config);
     }
 
     private static <T> Task<T> convertTaskEntityToTask(TaskEntity taskEntity, Class<T> payloadClass) {
@@ -86,26 +87,26 @@ public class TaskPoller<T> {
     public void start() {
         isToStop = false;
         isStopped = false;
-        fetchBatchAndProcess();
+        fetchBatchAndDispatch();
     }
 
     public Future<Void> stop() {
         isToStop = true;
-        log.info("{} stop triggered", pollerId);
+        log.info("{} stop triggered", dispatcherId);
         Promise<Void> promise = Promise.promise();
         if (isStopped) {
-            log.info("{} stopped", pollerId);
+            log.info("{} stopped", dispatcherId);
             promise.complete();
         } else {
             vertx.setPeriodic(1000, id -> {
-                log.info("{} stopping, checking status", pollerId);
+                log.info("{} stopping, checking status", dispatcherId);
                 if (isWaiting) {
                     vertx.cancelTimer(timerId);
-                    log.info("{} was waiting for next poll, timer cancelled, can stop immediately", pollerId);
+                    log.info("{} was waiting for next poll, timer cancelled, can stop immediately", dispatcherId);
                     isStopped = true;
                 }
                 if (isStopped) {
-                    log.info("{} stopped", pollerId);
+                    log.info("{} stopped", dispatcherId);
                     promise.complete();
                     vertx.cancelTimer(id);
                 }
@@ -117,18 +118,18 @@ public class TaskPoller<T> {
     /**
      * Frequently trigger the taskSelector to fetch tasks and then invoke the taskProcessor to process them
      */
-    private void fetchBatchAndProcess() {
+    private void fetchBatchAndDispatch() {
         isNoTaskWaitingForTimer = false;
         isWaiting = false;
         if (isToStop) {
-            log.info("{} isToStop=true, stop polling", pollerId);
+            log.info("{} isToStop=true, stop dispatch", dispatcherId);
             isStopped = true;
             return;
         }
         isStopped = false;
         long start = System.currentTimeMillis();
-        String pollId = pollerId + "-" + start;
-        fetchBatch2(pool, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay(), pollerInstance)
+        String pollId = dispatcherId + "-" + start;
+        fetchBatch2(pool, config.getQueueName(), config.getBatchSize(), config.getNextProcessDelay(), dispatcherInstance)
                 .onSuccess(batch -> {
                     long end = System.currentTimeMillis();
                     recordTime("fetch.batch", start, "result", "success");
@@ -136,7 +137,7 @@ public class TaskPoller<T> {
                         log.debug("{} tasks fetched, size=0. Time:{}ms. Fetch again in {}", pollId, end - start, config.getNoTaskPollInterval());
                         rerunWithDelayIfNecessary(config.getNoTaskPollInterval(), true);
                     } else {
-                        processBatch(batch, pollId, start);
+                        dispatchBatch(batch, pollId, start);
                     }
                 }).onFailure(e -> {
                     recordTime("fetch.batch", start, "result", "failure");
@@ -145,14 +146,14 @@ public class TaskPoller<T> {
                 });
     }
 
-    private void processBatch(List<TaskEntity> batch, String pollId, long fetchStart) {
+    private void dispatchBatch(List<TaskEntity> batch, String pollId, long fetchStart) {
         List<Long> taskIdList = batch.stream().map(TaskEntity::getId).toList();
         List<String> refNumberList = batch.stream().map(TaskEntity::getReferenceNumber).toList();
         String logTasks = "size=%d, taskIdList=%s, refList=%s".formatted(batch.size(), taskIdList, refNumberList);
         log.debug("{} tasks fetched, {} Time:{}ms", pollId, logTasks, System.currentTimeMillis() - fetchStart);
 
         long processStart = System.currentTimeMillis();
-        List<Future<?>> futures = batch.stream().map(this::processSingleTask).collect(Collectors.toList());
+        List<Future<?>> futures = batch.stream().map(this::dispatchSingleTask).collect(Collectors.toList());
         Future.join(futures).onSuccess(event -> {
             long end = System.currentTimeMillis();
             recordTime("process.batch", processStart, "result", "success");
@@ -166,7 +167,7 @@ public class TaskPoller<T> {
         });
     }
 
-    private Future<?> processSingleTask(TaskEntity taskEntity) {
+    private Future<?> dispatchSingleTask(TaskEntity taskEntity) {
         long start = System.currentTimeMillis();
         return Future.succeededFuture()
                 .map(res -> convertTaskEntityToTask(taskEntity, config.getPayloadClass()))
@@ -174,10 +175,10 @@ public class TaskPoller<T> {
                 .onSuccess(res -> {
                     long end = System.currentTimeMillis();
                     recordTime("process.single", start, "result", "success");
-                    log.info("{} task processed successfully, taskId={}, time={}ms, response={}", pollerId, taskEntity.getId(), end - start, res.body());
+                    log.info("{} task processed successfully, taskId={}, time={}ms, response={}", dispatcherId, taskEntity.getId(), end - start, res.body());
                 })
                 .recover(err -> {
-                    log.error("{} error processing task, taskId={}, will TRY to update task status to ERROR.", pollerId, taskEntity.getId(), err);
+                    log.error("{} error process task, taskId={}, will TRY to update task status to ERROR.", dispatcherId, taskEntity.getId(), err);
                     return markTaskAsError(taskEntity, start, err);
                 });
     }
@@ -185,8 +186,8 @@ public class TaskPoller<T> {
     private Future<Message<Object>> markTaskAsError(TaskEntity taskEntity, long start, Throwable err) {
         // for recover to mark the task as ERROR, it needs to be in a separate connection
         return pool.withConnection(conn -> fail(conn, taskEntity.getId(), getStackTrace(err))
-                        .onSuccess(count -> log.info("{} updated task status to ERROR, taskId={}, time={}ms", pollerId, taskEntity.getId(), System.currentTimeMillis() - start))
-                        .onFailure(e -> log.error("{} failed to update task status to ERROR, taskId={}", pollerId, taskEntity.getId(), e))
+                        .onSuccess(count -> log.info("{} updated task status to ERROR, taskId={}, time={}ms", dispatcherId, taskEntity.getId(), System.currentTimeMillis() - start))
+                        .onFailure(e -> log.error("{} failed to update task status to ERROR, taskId={}", dispatcherId, taskEntity.getId(), e))
                         .onComplete(result -> recordTime("process.single", start,"result", result.succeeded() ? "success" : "failure")))
                 .map(count -> null); // in order to convert Future<Integer> to align with eventbus.request's return type Future<Message<Object>>
     }
@@ -201,23 +202,23 @@ public class TaskPoller<T> {
 
     private void rerunWithDelayIfNecessary(Duration delay, boolean isNoTask) {
         if (isToStop) {
-            log.info("{} isToStop=true, stop polling", pollerId);
+            log.info("{} isToStop=true, stop dispatch", dispatcherId);
             isStopped = true;
             return;
         }
         if (config.isPollNextBatch()) {
             if (Duration.ZERO.equals(delay)) {
-                fetchBatchAndProcess();
+                fetchBatchAndDispatch();
             } else {
-                log.debug("{} rerun delay={}", pollerId, delay);
-                timerId = vertx.setTimer(delay.toMillis(), id -> fetchBatchAndProcess());
+                log.debug("{} rerun delay={}", dispatcherId, delay);
+                timerId = vertx.setTimer(delay.toMillis(), id -> fetchBatchAndDispatch());
                 isWaiting = true;
                 if (isNoTask) { // only allow to cancel timer when it's normal and no task case
                     isNoTaskWaitingForTimer = true;
                 }
             }
         } else {
-            log.info("{} isPollNextBatch=false, no more polling", pollerId);
+            log.info("{} isPollNextBatch=false, no more dispatch", dispatcherId);
             isStopped = true;
         }
     }
@@ -227,11 +228,11 @@ public class TaskPoller<T> {
     }
 
     private Future<List<TaskEntity>> fetchBatch(JDBCPool pool, String queueName, int batchSize, Duration nextProcessDelay) {
-        return pool.withTransaction(sqlConnection -> taskPollerRepo.checkout(sqlConnection, queueName, batchSize, nextProcessDelay));
+        return pool.withTransaction(sqlConnection -> taskDispatchRepo.checkout(sqlConnection, queueName, batchSize, nextProcessDelay));
     }
 
     private Future<List<TaskEntity>> fetchBatch2(JDBCPool pool, String queueName, int batchSize, Duration nextProcessDelay, String pollerInstance) {
-        return taskPollerRepo.checkout2(pool, queueName, batchSize, nextProcessDelay, pollerInstance);
+        return taskDispatchRepo.checkout2(pool, queueName, batchSize, nextProcessDelay, pollerInstance);
     }
 
 }

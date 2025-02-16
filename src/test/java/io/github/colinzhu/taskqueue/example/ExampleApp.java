@@ -2,12 +2,14 @@ package io.github.colinzhu.taskqueue.example;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
-import io.github.colinzhu.taskqueue.*;
+import io.github.colinzhu.taskqueue.Database;
+import io.github.colinzhu.taskqueue.dispatch.TaskDispatchConfig;
+import io.github.colinzhu.taskqueue.dispatch.TaskDispatchVerticle;
+import io.github.colinzhu.taskqueue.enqueue.TaskEnqueueService;
 import io.github.colinzhu.taskqueue.example.check.PaymentCheckTaskProcessor;
 import io.github.colinzhu.taskqueue.example.release.PaymentReleaseTaskProcessor;
-import io.github.colinzhu.taskqueue.polling.TaskPollerConfig;
-import io.github.colinzhu.taskqueue.polling.verticle.TaskPollerVerticle;
-import io.github.colinzhu.taskqueue.polling.verticle.TaskProcessorVerticle;
+import io.github.colinzhu.taskqueue.process.TaskProcessService;
+import io.github.colinzhu.taskqueue.process.TaskProcessVerticle;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.jvm.ClassLoaderMetrics;
 import io.micrometer.core.instrument.binder.jvm.JvmMemoryMetrics;
@@ -37,7 +39,7 @@ public class ExampleApp {
         setLogLevel(ROOT_LOGGER_NAME, Level.INFO);
         setLogLevel("com.mchange.v2.resourcepool.BasicResourcePool", Level.DEBUG);
         setLogLevel("io.github.colinzhu.taskqueue", Level.DEBUG);
-        setLogLevel("io.github.colinzhu.taskqueue.polling.TaskPoller", Level.DEBUG);
+        setLogLevel("io.github.colinzhu.taskqueue.dispatch.TaskDispatcher", Level.DEBUG);
         setLogLevel("io.github.colinzhu.taskqueue.internal.TaskRepo", Level.DEBUG);
         setLogLevel("io.micrometer", Level.OFF);
 
@@ -67,13 +69,13 @@ public class ExampleApp {
 
     private static void deployVerticles(Vertx vertx, JDBCPool pool) {
         Supplier<JDBCPool> poolSupplier = () -> Database.get(Database.H2).getJdbcPool(vertx);
-        TaskPollerConfig<Payment> taskPollerCheckConfig = new TaskPollerConfig<>("payment.check", Payment.class).setBatchSize(20);
-        TaskPollerConfig<Payment> taskPollerReleaseConfig = new TaskPollerConfig<>("payment.release", Payment.class).setBatchSize(20);
+        TaskDispatchConfig<Payment> taskPollerCheckConfig = new TaskDispatchConfig<>("payment.check", Payment.class).setBatchSize(20);
+        TaskDispatchConfig<Payment> taskPollerReleaseConfig = new TaskDispatchConfig<>("payment.release", Payment.class).setBatchSize(20);
 
-        vertx.deployVerticle(new TaskProcessorVerticle<>(taskPollerCheckConfig.getQueueName(), () -> new PaymentCheckTaskProcessor(vertx, poolSupplier, TaskQueueService.taskQueue(vertx))))
-                .compose(any -> vertx.deployVerticle(new TaskProcessorVerticle<>(taskPollerReleaseConfig.getQueueName(), () -> new PaymentReleaseTaskProcessor(vertx, poolSupplier, TaskQueueService.taskQueue(vertx)))))
-                .compose(any -> vertx.deployVerticle(new TaskPollerVerticle<>(poolSupplier, taskPollerCheckConfig)))
-                .compose(any -> vertx.deployVerticle(new TaskPollerVerticle<>(poolSupplier, taskPollerReleaseConfig)))
+        vertx.deployVerticle(new TaskProcessVerticle<>(taskPollerCheckConfig.getQueueName(), () -> new PaymentCheckTaskProcessor(vertx, poolSupplier, TaskEnqueueService.taskQueue(vertx), TaskProcessService.getInstance())))
+                .compose(any -> vertx.deployVerticle(new TaskProcessVerticle<>(taskPollerReleaseConfig.getQueueName(), () -> new PaymentReleaseTaskProcessor(vertx, poolSupplier, TaskProcessService.getInstance()))))
+                .compose(any -> vertx.deployVerticle(new TaskDispatchVerticle<>(poolSupplier, taskPollerCheckConfig)))
+                .compose(any -> vertx.deployVerticle(new TaskDispatchVerticle<>(poolSupplier, taskPollerReleaseConfig)))
                 .compose(any -> vertx.deployVerticle(() -> new WebVerticle(pool), new DeploymentOptions().setInstances(2)))
                 .onFailure(err -> log.error("error", err));
     }

@@ -1,7 +1,6 @@
-package io.github.colinzhu.taskqueue.polling.verticle;
+package io.github.colinzhu.taskqueue.process;
 
-import io.github.colinzhu.taskqueue.polling.Task;
-import io.github.colinzhu.taskqueue.polling.internal.TaskQueueMetrics;
+import io.github.colinzhu.taskqueue.internal.TaskQueueMetrics;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -9,16 +8,15 @@ import io.vertx.core.eventbus.Message;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 @Slf4j
 @RequiredArgsConstructor
-public class TaskProcessorVerticle<T> extends AbstractVerticle {
+public class TaskProcessVerticle<T> extends AbstractVerticle {
     private final String queueName;
-    private final Supplier<Function<Task<T>, Future<?>>> taskProcessorSupplier;
+    private final Supplier<TaskProcessor<T>> taskProcessorSupplier;
     private final TaskQueueMetrics metrics = new TaskQueueMetrics();
-    private Function<Task<T>, Future<?>> taskProcessor;
+    private TaskProcessor<T> taskProcessor;
 
     @Override
     public void start() {
@@ -31,10 +29,10 @@ public class TaskProcessorVerticle<T> extends AbstractVerticle {
         long start = System.currentTimeMillis();
         log.info("{} task received, taskId={}", this, message.body().getId());
         Future.succeededFuture()
-                .compose(any -> taskProcessor.apply(message.body()))
+                .compose(any -> taskProcessor.process(message.body()))
                 .onSuccess(message::reply)
                 .onFailure(err -> {
-                    log.error("{} error processing task, taskId={}", this, message.body().getId(), err);
+                    log.error("{} error process task, taskId={}", this, message.body().getId(), err);
                     message.fail(1, "task processor replied err message: " + err.getMessage());
                 })
                 .onComplete(result -> recordTime(start, "result", result.succeeded() ? "success" : "failure"));

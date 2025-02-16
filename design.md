@@ -174,7 +174,7 @@ pool.withTransaction(conn ->
     businessLogic(conn)
         // 2. 入队任务
         .compose(result -> 
-            taskQueueService.enqueue(conn, "queue", "ref", payload))
+            taskEnqueueService.enqueue(conn, "queue", "ref", payload))
 );
 ```
 
@@ -226,7 +226,7 @@ class CustomTaskProcessor implements Function<Task<T>, Future<?>> {
      - 提供基础工具方法
 
 2. **轮询模块（polling）**
-   - 包路径：`io.github.colinzhu.taskqueue.polling`
+   - 包路径：`io.github.colinzhu.taskqueue.dispatch`
    - 主要组件：
      - `TaskPoller` - 任务轮询器
      - `TaskPollerVerticle` - 轮询Verticle
@@ -306,7 +306,7 @@ pool.withTransaction(conn ->
     businessLogic(conn)
         // 2. 入队任务
         .compose(result -> 
-            taskQueueService.enqueue(conn, "queue", "ref", payload))
+            taskEnqueueService.enqueue(conn, "queue", "ref", payload))
 );
 ```
 

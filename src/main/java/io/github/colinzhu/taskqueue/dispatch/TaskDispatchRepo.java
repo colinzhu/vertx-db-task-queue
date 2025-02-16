@@ -1,4 +1,4 @@
-package io.github.colinzhu.taskqueue.polling;
+package io.github.colinzhu.taskqueue.dispatch;
 
 import io.github.colinzhu.taskqueue.internal.TaskEntity;
 import io.github.colinzhu.taskqueue.internal.TaskStatus;
@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
-class TaskPollerRepo {
+class TaskDispatchRepo {
     private static final String SQL_CHECK_OUT_STEP1_SELECT = "SELECT * FROM TASKS WHERE ID IN (SELECT ID FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY) AND STATUS IN ('CREATED','PROCESSING') AND NEXT_PROCESS_TIME <= #{now} FOR UPDATE SKIP LOCKED";
     private static final String SQL_CHECK_OUT_STEP2_UPDATE = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE ID IN ({idList})";
     private static final String SQL_CHECK_OUT_2_STEP1 = "UPDATE TASKS SET ATTEMPT = ATTEMPT + 1, STATUS = 'PROCESSING', POLLER_INSTANCE = #{pollerInstance}, NEXT_PROCESS_TIME = #{newNextProcessTime}, LAST_UPDATE_TIME = #{now} WHERE (ID, LAST_UPDATE_TIME) IN ((SELECT ID, LAST_UPDATE_TIME FROM TASKS WHERE STATUS IN ('CREATED','PROCESSING') AND QUEUE_NAME = #{queueName} AND NEXT_PROCESS_TIME <= #{now} ORDER BY NEXT_PROCESS_TIME FETCH FIRST #{batchSize} ROWS ONLY)) AND NEXT_PROCESS_TIME <= #{now}";
@@ -81,7 +81,7 @@ class TaskPollerRepo {
      * <p>The `checkout2step1update` SQL statement updates the status of the tasks to 'PROCESSING' and sets the `POLLER_INSTANCE` to the current poller instance. It only updates tasks that are in 'CREATED' or 'PROCESSING' status, whose `NEXT_PROCESS_TIME` is less than or equal to the current time, and only updates up to `batchSize` number of tasks.</p>
      * <p>The `checkout2step2select` SQL statement then selects the tasks that are in 'PROCESSING' status, whose `QUEUE_NAME` matches the given queue name, and whose `POLLER_INSTANCE` matches the current poller instance.</p>
      * <p>In a multi-instance scenario, it is possible that two instances execute the `checkout2step1update` statement at the same time and update the same tasks. However, since each instance sets the `POLLER_INSTANCE` to its own instance identifier, when they execute the `checkout2step2select` statement, they will only select the tasks that they themselves have updated. Therefore, it should not be possible for the same tasks to be fetched by more than one instance.</p>
-     * <p>Exception case: The checkout2step1update statement updates the NEXT_PROCESS_TIME to be less than or equal to the current time. So, if an application instance crashes or is stopped after executing the checkout2step1update statement but before executing the checkout2step2select statement, these tasks will not be selected and processed until the application instance restarts and executes the checkout2step2select statement. However, in the meantime, other running instances of the application can execute the checkout2step1update statement and fetch these idled records because their NEXT_PROCESS_TIME is in the past. So, while there might be a delay in processing these tasks, they will not be left unprocessed indefinitely.</p>
+     * <p>Exception case: The checkout2step1update statement updates the NEXT_PROCESS_TIME to be less than or equal to the current time. So, if an application instance crashes or is stopped after executing the checkout2step1update statement but before executing the checkout2step2select statement, these tasks will not be selected and processed until the application instance restarts and executes the checkout2step2select statement. However, in the meantime, other running instances of the application can execute the checkout2step1update statement and fetch these idled records because their NEXT_PROCESS_TIME is in the past. So, while there might be a delay in process these tasks, they will not be left unprocessed indefinitely.</p>
      */
     public Future<List<TaskEntity>> checkout2(JDBCPool pool, String queueName, int batchSize, Duration nextProcessDelay, String pollerInstance) {
         // 'update' and 'select' are in 2 different connections, not in one transaction

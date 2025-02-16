@@ -12,7 +12,7 @@ public interface Database {
     static Database get(String dbType) {
         return switch (dbType) {
             case H2_MEM -> new H2Database(true);
-            case ORACLE -> null;
+            case ORACLE -> throw new UnsupportedOperationException("Oracle is not supported yet");
             default -> new H2Database(false);
         };
     }

@@ -101,7 +101,7 @@ so that if any step fails, both can be rolled back.
 Example:
 ```java
 pool.withTransaction(conn -> insertPayment(conn, p)
-    .compose(payment -> taskQueueService.enqueue(conn, "payment.check", "REF_" + payment.getId(), payment)))
+    .compose(payment -> taskEnqueueService.enqueue(conn, "payment.check", "REF_" + payment.getId(), payment)))
 ```
 Create a `TaskProcessorVerticle` to process a task, which is retrieved from event bus
 Create a `TaskPollerVerticle` to fetch tasks from a queue, and send to the `TaskProcessorVerticle` through event bus
@@ -114,10 +114,10 @@ TaskPollerConfig<Payment> taskPollerReleaseConfig = new TaskPollerConfig<>("paym
 // prepare a taskProcessor
 PaymentReleaseTaskProcessor paymentReleaseTaskProcessor = new PaymentReleaseTaskProcessor(vertx, pool, TaskQueueService.taskQueue(vertx));
 
-// deploy TaskProcessorVerticle
+// deploy TaskProcessVerticle
 vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerReleaseConfig.getQueueName(), paymentReleaseTaskProcessor), new DeploymentOptions().setInstances(3));
 
-// deploy TaskPollerVerticle
+// deploy TaskDispatchVerticle
 vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerReleaseConfig), new DeploymentOptions().setInstances(1));
 ```
 Within the task processor, complete a task
@@ -129,7 +129,7 @@ Example:
 ```java
 txn.query("UPDATE PAYMENT SET STATUS = 'PENDING_RELEASE' WHERE ID = " + payment.getId())
     .execute()
-    .compose(res -> taskQueueService.complete(txn, task.getId()));
+    .compose(res -> taskEnqueueService.complete(txn, task.getId()));
 ```
 
 ## Task status

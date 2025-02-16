@@ -1,4 +1,4 @@
-package io.github.colinzhu.taskqueue.polling;
+package io.github.colinzhu.taskqueue.dispatch;
 
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -10,7 +10,7 @@ import java.util.function.Supplier;
 @RequiredArgsConstructor
 @Data
 @Accessors(chain = true)
-public class TaskPollerConfig<T> {
+public class TaskDispatchConfig<T> {
     private final String queueName;
     private final Class<T> payloadClass;
 

@@ -1,8 +1,9 @@
 package io.github.colinzhu.taskqueue.example.release;
 
-import io.github.colinzhu.taskqueue.polling.Task;
-import io.github.colinzhu.taskqueue.TaskQueueService;
 import io.github.colinzhu.taskqueue.example.Payment;
+import io.github.colinzhu.taskqueue.process.Task;
+import io.github.colinzhu.taskqueue.process.TaskProcessService;
+import io.github.colinzhu.taskqueue.process.TaskProcessor;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
@@ -11,36 +12,37 @@ import io.vertx.sqlclient.SqlConnection;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.random.RandomGenerator;
 
 @Slf4j
-public class PaymentReleaseTaskProcessor implements Function<Task<Payment>, Future<?>> {
+public class PaymentReleaseTaskProcessor implements TaskProcessor<Payment> {
     private final Vertx vertx;
-    private final TaskQueueService taskQueueService;
+    private final TaskProcessService taskProcessService;
     private final JDBCPool pool;
 
-    public PaymentReleaseTaskProcessor(Vertx vertx, Supplier<JDBCPool> poolSupplier, TaskQueueService taskQueueService) {
+    public PaymentReleaseTaskProcessor(Vertx vertx,
+                                       Supplier<JDBCPool> poolSupplier,
+                                       TaskProcessService taskProcessService) {
         this.vertx = vertx;
-        this.taskQueueService = taskQueueService;
+        this.taskProcessService = taskProcessService;
         this.pool = poolSupplier.get();
     }
 
     @Override
-    public Future<Integer> apply(Task<Payment> task) {
+    public Future<Void> process(Task<Payment> task) {
         return doSomething(task)
                 .recover(err -> Future.succeededFuture(err.getMessage()))
                 .compose(res -> pool.withTransaction(conn -> persistChanges(conn, res, task)));
     }
 
-    private Future<Integer> persistChanges(SqlConnection txn, String result, Task<Payment> task) {
+    private Future<Void> persistChanges(SqlConnection txn, String result, Task<Payment> task) {
         if ("success".equals(result)) {
             return txn.query("UPDATE PAYMENT SET STATUS = 'RELEASED' WHERE ID = " + task.getPayload().getId())
                     .execute()
-                    .compose(res -> taskQueueService.complete(txn, task));
+                    .compose(res -> taskProcessService.complete(txn, task));
         } else { // example to use reenqueue as a retry
-            return taskQueueService.reenqueue(txn, task, Duration.ofSeconds(2), "failed to release, retry in 2 sec, err=" + result);
+            return taskProcessService.reenqueue(txn, task, Duration.ofSeconds(2), "failed to release, retry in 2 sec, err=" + result);
         }
     }
 
