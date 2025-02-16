@@ -34,7 +34,7 @@ public class PaymentCheckTaskProcessor implements TaskProcessor<Payment> {
     }
 
     @Override
-    public Future<?> process(Task<Payment> task) {
+    public Future<Void> process(Task<Payment> task) {
         return doSomething(task)
                 .compose(payment -> {
                     if (RandomGenerator.getDefault().nextInt(1, 10) == 7) {
@@ -45,7 +45,8 @@ public class PaymentCheckTaskProcessor implements TaskProcessor<Payment> {
                         return Future.succeededFuture(payment);
                     }
                 })
-                .compose(payment -> pool.withTransaction(conn -> persistChanges(conn, payment, task)));
+                .compose(payment -> pool.withTransaction(conn -> persistChanges(conn, payment, task)))
+                .map(any -> null);
     }
 
     private Future<?> persistChanges(SqlConnection txn, Payment payment, Task<Payment> task) {

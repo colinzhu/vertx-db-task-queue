@@ -30,13 +30,13 @@ public class PaymentReleaseTaskProcessor implements TaskProcessor<Payment> {
     }
 
     @Override
-    public Future<Integer> process(Task<Payment> task) {
+    public Future<Void> process(Task<Payment> task) {
         return doSomething(task)
                 .recover(err -> Future.succeededFuture(err.getMessage()))
                 .compose(res -> pool.withTransaction(conn -> persistChanges(conn, res, task)));
     }
 
-    private Future<Integer> persistChanges(SqlConnection txn, String result, Task<Payment> task) {
+    private Future<Void> persistChanges(SqlConnection txn, String result, Task<Payment> task) {
         if ("success".equals(result)) {
             return txn.query("UPDATE PAYMENT SET STATUS = 'RELEASED' WHERE ID = " + task.getPayload().getId())
                     .execute()

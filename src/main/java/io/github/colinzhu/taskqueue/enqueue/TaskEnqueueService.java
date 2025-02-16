@@ -26,7 +26,7 @@ public interface TaskEnqueueService {
      * @param <T>           task payload type
      * @return future of a task id
      */
-    <T> Future<Long> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload);
+    <T> Future<Void> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload);
 
     /**
      * Enqueues a task into the task queue with a delay time.
@@ -38,5 +38,5 @@ public interface TaskEnqueueService {
      * @param <T>           task payload type
      * @return future of a task which has been stored into task queue
      */
-    <T> Future<Long> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration delay);
+    <T> Future<Void> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration delay);
 }

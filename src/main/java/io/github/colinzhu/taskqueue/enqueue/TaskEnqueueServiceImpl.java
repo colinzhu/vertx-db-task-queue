@@ -28,11 +28,11 @@ class TaskEnqueueServiceImpl implements TaskEnqueueService {
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule()).disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     @Override
-    public <T> Future<Long> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload) {
+    public <T> Future<Void> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload) {
         return enqueue(sqlConnection, queueName, refNumber, payload, Duration.ZERO);
     }
     @Override
-    public <T> Future<Long> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
+    public <T> Future<Void> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
         String payloadStr;
         try {
             payloadStr = objectMapper.writeValueAsString(payload);
@@ -46,7 +46,7 @@ class TaskEnqueueServiceImpl implements TaskEnqueueService {
                         log.debug("New task notification sent to event bus, address={}, taskId={}", "poller." + queueName, task.getId());
                     }
                     return task.getId();
-                });
+                }).map(taskId -> null);
     }
 
 }

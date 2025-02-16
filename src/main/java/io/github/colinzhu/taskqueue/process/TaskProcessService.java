@@ -23,7 +23,7 @@ public interface TaskProcessService {
      * @param task the task
      * @return future of number of task updated
      */
-    <T> Future<Integer> complete(SqlConnection sqlConnection, Task<T> task);
+    <T> Future<Void> complete(SqlConnection sqlConnection, Task<T> task);
 
     /**
      * Completes a task and sets a process result.
@@ -32,7 +32,7 @@ public interface TaskProcessService {
      * @param processResult the process result
      * @return future of number of task updated
      */
-    <T> Future<Integer> complete(SqlConnection sqlConnection, Task<T> task, String processResult);
+    <T> Future<Void> complete(SqlConnection sqlConnection, Task<T> task, String processResult);
 
     /**
      * Completes a task by deleting it from the queue.
@@ -40,7 +40,7 @@ public interface TaskProcessService {
      * @param task the task
      * @return future of number of task deleted
      */
-    <T> Future<Integer> completeDelete(SqlConnection sqlConnection, Task<T> task);
+    <T> Future<Void> completeDelete(SqlConnection sqlConnection, Task<T> task);
 
     /**
      * Reenqueues a task so that it can be processed again later.
@@ -49,7 +49,7 @@ public interface TaskProcessService {
      * @param delay process delay time after putting into the queue
      * @return future of number of task updated
      */
-    <T> Future<Integer> reenqueue(SqlConnection sqlConnection, Task<T> task, Duration delay);
+    <T> Future<Void> reenqueue(SqlConnection sqlConnection, Task<T> task, Duration delay);
 
     /**
      * Reenqueues a task so that it can be processed again later and sets a process result.
@@ -59,5 +59,5 @@ public interface TaskProcessService {
      * @param processResult current process result before the next process
      * @return future of number of task updated
      */
-    <T> Future<Integer> reenqueue(SqlConnection sqlConnection, Task<T> task, Duration delay, String processResult);
+    <T> Future<Void> reenqueue(SqlConnection sqlConnection, Task<T> task, Duration delay, String processResult);
 }
