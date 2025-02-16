@@ -1,4 +1,4 @@
-package io.github.colinzhu.taskqueue.processing;
+package io.github.colinzhu.taskqueue.process;
 
 import io.github.colinzhu.taskqueue.internal.TaskQueueMetrics;
 import io.vertx.core.AbstractVerticle;
@@ -32,7 +32,7 @@ public class TaskProcessorVerticle<T> extends AbstractVerticle {
                 .compose(any -> taskProcessor.process(message.body()))
                 .onSuccess(message::reply)
                 .onFailure(err -> {
-                    log.error("{} error processing task, taskId={}", this, message.body().getId(), err);
+                    log.error("{} error process task, taskId={}", this, message.body().getId(), err);
                     message.fail(1, "task processor replied err message: " + err.getMessage());
                 })
                 .onComplete(result -> recordTime(start, "result", result.succeeded() ? "success" : "failure"));

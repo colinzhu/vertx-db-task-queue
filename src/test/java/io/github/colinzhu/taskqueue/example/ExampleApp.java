@@ -2,14 +2,14 @@ package io.github.colinzhu.taskqueue.example;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
-import io.github.colinzhu.taskqueue.*;
+import io.github.colinzhu.taskqueue.Database;
+import io.github.colinzhu.taskqueue.dispatch.TaskPollerConfig;
+import io.github.colinzhu.taskqueue.dispatch.TaskPollerVerticle;
 import io.github.colinzhu.taskqueue.enqueue.TaskEnqueueService;
 import io.github.colinzhu.taskqueue.example.check.PaymentCheckTaskProcessor;
 import io.github.colinzhu.taskqueue.example.release.PaymentReleaseTaskProcessor;
-import io.github.colinzhu.taskqueue.polling.TaskPollerConfig;
-import io.github.colinzhu.taskqueue.polling.TaskPollerVerticle;
-import io.github.colinzhu.taskqueue.processing.TaskProcessService;
-import io.github.colinzhu.taskqueue.processing.TaskProcessorVerticle;
+import io.github.colinzhu.taskqueue.process.TaskProcessService;
+import io.github.colinzhu.taskqueue.process.TaskProcessorVerticle;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.jvm.ClassLoaderMetrics;
 import io.micrometer.core.instrument.binder.jvm.JvmMemoryMetrics;
@@ -39,7 +39,7 @@ public class ExampleApp {
         setLogLevel(ROOT_LOGGER_NAME, Level.INFO);
         setLogLevel("com.mchange.v2.resourcepool.BasicResourcePool", Level.DEBUG);
         setLogLevel("io.github.colinzhu.taskqueue", Level.DEBUG);
-        setLogLevel("io.github.colinzhu.taskqueue.polling.TaskPoller", Level.DEBUG);
+        setLogLevel("io.github.colinzhu.taskqueue.dispatch.TaskPoller", Level.DEBUG);
         setLogLevel("io.github.colinzhu.taskqueue.internal.TaskRepo", Level.DEBUG);
         setLogLevel("io.micrometer", Level.OFF);
 

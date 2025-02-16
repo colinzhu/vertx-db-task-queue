@@ -1,4 +1,4 @@
-package io.github.colinzhu.taskqueue.polling;
+package io.github.colinzhu.taskqueue.dispatch;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;

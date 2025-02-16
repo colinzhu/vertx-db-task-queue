@@ -1,4 +1,4 @@
-package io.github.colinzhu.taskqueue.polling;
+package io.github.colinzhu.taskqueue.dispatch;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -6,7 +6,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.github.colinzhu.taskqueue.internal.TaskEntity;
 import io.github.colinzhu.taskqueue.internal.TaskQueueMetrics;
 import io.github.colinzhu.taskqueue.internal.TaskRepo;
-import io.github.colinzhu.taskqueue.processing.Task;
+import io.github.colinzhu.taskqueue.process.Task;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
@@ -122,7 +122,7 @@ public class TaskPoller<T> {
         isNoTaskWaitingForTimer = false;
         isWaiting = false;
         if (isToStop) {
-            log.info("{} isToStop=true, stop polling", pollerId);
+            log.info("{} isToStop=true, stop dispatch", pollerId);
             isStopped = true;
             return;
         }
@@ -178,7 +178,7 @@ public class TaskPoller<T> {
                     log.info("{} task processed successfully, taskId={}, time={}ms, response={}", pollerId, taskEntity.getId(), end - start, res.body());
                 })
                 .recover(err -> {
-                    log.error("{} error processing task, taskId={}, will TRY to update task status to ERROR.", pollerId, taskEntity.getId(), err);
+                    log.error("{} error process task, taskId={}, will TRY to update task status to ERROR.", pollerId, taskEntity.getId(), err);
                     return markTaskAsError(taskEntity, start, err);
                 });
     }
@@ -202,7 +202,7 @@ public class TaskPoller<T> {
 
     private void rerunWithDelayIfNecessary(Duration delay, boolean isNoTask) {
         if (isToStop) {
-            log.info("{} isToStop=true, stop polling", pollerId);
+            log.info("{} isToStop=true, stop dispatch", pollerId);
             isStopped = true;
             return;
         }
@@ -218,7 +218,7 @@ public class TaskPoller<T> {
                 }
             }
         } else {
-            log.info("{} isPollNextBatch=false, no more polling", pollerId);
+            log.info("{} isPollNextBatch=false, no more dispatch", pollerId);
             isStopped = true;
         }
     }

@@ -1,10 +1,10 @@
 package io.github.colinzhu.taskqueue.example.check;
 
 import io.github.colinzhu.taskqueue.enqueue.TaskEnqueueService;
-import io.github.colinzhu.taskqueue.processing.Task;
 import io.github.colinzhu.taskqueue.example.Payment;
-import io.github.colinzhu.taskqueue.processing.TaskProcessService;
-import io.github.colinzhu.taskqueue.processing.TaskProcessor;
+import io.github.colinzhu.taskqueue.process.Task;
+import io.github.colinzhu.taskqueue.process.TaskProcessService;
+import io.github.colinzhu.taskqueue.process.TaskProcessor;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;

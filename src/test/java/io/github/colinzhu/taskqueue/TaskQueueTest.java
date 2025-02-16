@@ -2,14 +2,14 @@ package io.github.colinzhu.taskqueue;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
+import io.github.colinzhu.taskqueue.dispatch.TaskPollerConfig;
+import io.github.colinzhu.taskqueue.dispatch.TaskPollerVerticle;
 import io.github.colinzhu.taskqueue.enqueue.TaskEnqueueService;
 import io.github.colinzhu.taskqueue.example.Payment;
 import io.github.colinzhu.taskqueue.internal.TaskStatus;
-import io.github.colinzhu.taskqueue.polling.TaskPollerConfig;
-import io.github.colinzhu.taskqueue.polling.TaskPollerVerticle;
-import io.github.colinzhu.taskqueue.processing.TaskProcessService;
-import io.github.colinzhu.taskqueue.processing.TaskProcessor;
-import io.github.colinzhu.taskqueue.processing.TaskProcessorVerticle;
+import io.github.colinzhu.taskqueue.process.TaskProcessService;
+import io.github.colinzhu.taskqueue.process.TaskProcessor;
+import io.github.colinzhu.taskqueue.process.TaskProcessorVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -48,7 +48,7 @@ class TaskQueueTest {
         setLogLevel("com.mchange.v2.resourcepool.BasicResourcePool", Level.INFO);
         setLogLevel("io.github.colinzhu.taskqueue", Level.DEBUG);
         setLogLevel("io.github.colinzhu.taskqueue.internal.TaskRepo", Level.DEBUG);
-        setLogLevel("io.github.colinzhu.taskqueue.polling.TaskPoller", Level.DEBUG);
+        setLogLevel("io.github.colinzhu.taskqueue.dispatch.TaskPoller", Level.DEBUG);
 
         taskEnqueueService = TaskEnqueueService.taskQueue(vertx);
         taskProcessService = TaskProcessService.getInstance();
@@ -83,7 +83,7 @@ class TaskQueueTest {
             log.info("Processing {}", task.getPayload());
             Function<SqlConnection, Future<Integer>> function;
             if ("REENQUEUE".equals(afterProcessAction)) {
-                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskProcessService.reenqueue(conn, task, Duration.ofSeconds(5))); // when verify in 1 sec, not yet in processing status
+                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskProcessService.reenqueue(conn, task, Duration.ofSeconds(5))); // when verify in 1 sec, not yet in process status
             } else if ("COMPLETE".equals(afterProcessAction)) {
                 function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskProcessService.complete(conn, task));
             } else {
@@ -110,7 +110,7 @@ class TaskQueueTest {
         log.info("Payment created: {}", payment);
         Future<Long> enqueueTask = deployVerticles.compose(any -> pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskEnqueueService.enqueue(conn, queueName, "ref1", p))));
 
-        // verify after the poller processing the task
+        // verify after the poller process the task
         enqueueTask.onComplete(testContext.succeeding(taskId -> {
             vertx.setTimer(1000, id -> { // make sure the poller has already processed the task
                 // verify payment status
@@ -122,7 +122,7 @@ class TaskQueueTest {
                 // verify task
                 retrieveTask(taskId).onComplete(testContext.succeeding(res -> {
                     if ("REENQUEUE".equals(afterProcessAction)) {
-                        Assertions.assertSame(CREATED, TaskStatus.valueOf(res.getString("STATUS")), "task should still be available for next processing");
+                        Assertions.assertSame(CREATED, TaskStatus.valueOf(res.getString("STATUS")), "task should still be available for next process");
                     } else if ("COMPLETE".equals(afterProcessAction)) {
                         Assertions.assertSame(COMPLETED, TaskStatus.valueOf(res.getString("STATUS")), "task should still be in COMPLETED status");
                     } else {
@@ -173,7 +173,7 @@ class TaskQueueTest {
         // enqueue a task
         Future<Long> enqueueTask = deployVerticles.compose(any -> pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskEnqueueService.enqueue(conn, queueName, "ref1", p))));
 
-        // verify after the poller processing the task
+        // verify after the poller process the task
         enqueueTask.onComplete(testContext.succeeding(taskId -> {
             vertx.setTimer(1000, id -> { // make sure the poller has already processed the task
                 // verify payment status
@@ -248,7 +248,7 @@ class TaskQueueTest {
     }
 
     @ParameterizedTest
-    @DisplayName("Task processing error - changes should be rolled back, tasks should be updated to ERROR")
+    @DisplayName("Task process error - changes should be rolled back, tasks should be updated to ERROR")
     @CsvSource({"ERR_IN_TXN", "ERR_BEFORE_TXN"})
     void testTaskProcessingError(String errLocation, Vertx vertx, VertxTestContext testContext) {
         Checkpoint checkpoint = testContext.checkpoint(2);
@@ -286,7 +286,7 @@ class TaskQueueTest {
         // enqueue a task
         Future<Long> enqueueTask = deployVerticles.compose(any -> pool.withTransaction(conn -> savePayment(conn, payment).compose(p -> taskEnqueueService.enqueue(conn, queueName, "ref1", p))));
 
-        // verify after the poller processing the task
+        // verify after the poller process the task
         enqueueTask.onComplete(testContext.succeeding(taskId -> {
             vertx.setTimer(1000, id -> { // make sure the poller has already processed the task
                 // verify payment status

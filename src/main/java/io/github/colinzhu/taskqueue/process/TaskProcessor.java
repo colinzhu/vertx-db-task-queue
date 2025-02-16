@@ -1,4 +1,4 @@
-package io.github.colinzhu.taskqueue.processing;
+package io.github.colinzhu.taskqueue.process;
 
 import io.vertx.core.Future;
 

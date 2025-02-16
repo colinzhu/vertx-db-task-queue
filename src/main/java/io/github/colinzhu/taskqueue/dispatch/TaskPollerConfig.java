@@ -1,4 +1,4 @@
-package io.github.colinzhu.taskqueue.polling;
+package io.github.colinzhu.taskqueue.dispatch;
 
 import lombok.Data;
 import lombok.RequiredArgsConstructor;

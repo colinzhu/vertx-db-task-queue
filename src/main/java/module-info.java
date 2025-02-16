@@ -13,16 +13,16 @@ module io.github.colinzhu.taskqueue {
     requires ch.qos.logback.core;
     requires ch.qos.logback.classic;
 
-    exports io.github.colinzhu.taskqueue.polling;
-    exports io.github.colinzhu.taskqueue.processing;
+    exports io.github.colinzhu.taskqueue.dispatch;
+    exports io.github.colinzhu.taskqueue.process;
     exports io.github.colinzhu.taskqueue.enqueue;
     exports io.github.colinzhu.taskqueue.support;
 
     opens io.github.colinzhu.taskqueue.internal to com.fasterxml.jackson.databind, lombok;
-    opens io.github.colinzhu.taskqueue.polling to lombok;
+    opens io.github.colinzhu.taskqueue.dispatch to lombok;
     opens io.github.colinzhu.taskqueue.support to lombok;
     opens io.github.colinzhu.taskqueue.enqueue to lombok;
-    opens io.github.colinzhu.taskqueue.processing to lombok;
+    opens io.github.colinzhu.taskqueue.process to lombok;
 
 }
 

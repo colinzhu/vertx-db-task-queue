@@ -226,7 +226,7 @@ class CustomTaskProcessor implements Function<Task<T>, Future<?>> {
      - 提供基础工具方法
 
 2. **轮询模块（polling）**
-   - 包路径：`io.github.colinzhu.taskqueue.polling`
+   - 包路径：`io.github.colinzhu.taskqueue.dispatch`
    - 主要组件：
      - `TaskPoller` - 任务轮询器
      - `TaskPollerVerticle` - 轮询Verticle
