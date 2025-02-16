@@ -13,16 +13,16 @@ import static io.github.colinzhu.taskqueue.internal.EventAddress.POLLER_START_PR
 
 @Slf4j
 @RequiredArgsConstructor
-public class TaskPollerVerticle<T> extends AbstractVerticle {
+public class TaskDispatchVerticle<T> extends AbstractVerticle {
     private final Supplier<JDBCPool> poolSupplier;
-    private final TaskPollerConfig<T> config;
-    private TaskPoller<T> poller;
+    private final TaskDispatchConfig<T> config;
+    private TaskDispatcher<T> poller;
 
 
     @Override
     public void start() {
         // make sure the pool instance is created by verticle itself, not a shared instance created by another component
-        poller = new TaskPoller<>(vertx, poolSupplier.get(), config);
+        poller = new TaskDispatcher<>(vertx, poolSupplier.get(), config);
         if (config.getToStartPoller().get()) {
             log.info("{} toStartPoller=true, will start the poller", this);
             poller.start();

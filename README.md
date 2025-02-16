@@ -114,10 +114,10 @@ TaskPollerConfig<Payment> taskPollerReleaseConfig = new TaskPollerConfig<>("paym
 // prepare a taskProcessor
 PaymentReleaseTaskProcessor paymentReleaseTaskProcessor = new PaymentReleaseTaskProcessor(vertx, pool, TaskQueueService.taskQueue(vertx));
 
-// deploy TaskProcessorVerticle
+// deploy TaskProcessVerticle
 vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerReleaseConfig.getQueueName(), paymentReleaseTaskProcessor), new DeploymentOptions().setInstances(3));
 
-// deploy TaskPollerVerticle
+// deploy TaskDispatchVerticle
 vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerReleaseConfig), new DeploymentOptions().setInstances(1));
 ```
 Within the task processor, complete a task

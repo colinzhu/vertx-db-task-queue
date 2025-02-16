@@ -12,7 +12,7 @@ import java.util.function.Supplier;
 
 @Slf4j
 @RequiredArgsConstructor
-public class TaskProcessorVerticle<T> extends AbstractVerticle {
+public class TaskProcessVerticle<T> extends AbstractVerticle {
     private final String queueName;
     private final Supplier<TaskProcessor<T>> taskProcessorSupplier;
     private final TaskQueueMetrics metrics = new TaskQueueMetrics();

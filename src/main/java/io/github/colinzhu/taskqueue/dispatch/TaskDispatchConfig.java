@@ -10,7 +10,7 @@ import java.util.function.Supplier;
 @RequiredArgsConstructor
 @Data
 @Accessors(chain = true)
-public class TaskPollerConfig<T> {
+public class TaskDispatchConfig<T> {
     private final String queueName;
     private final Class<T> payloadClass;
 
