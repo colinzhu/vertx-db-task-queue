@@ -2,6 +2,8 @@ package io.github.colinzhu.taskqueue.example;
 
 import io.github.colinzhu.taskqueue.*;
 import io.github.colinzhu.taskqueue.example.create.PaymentCreateHandler;
+import io.github.colinzhu.taskqueue.support.TaskQueueSupportHandler;
+import io.github.colinzhu.taskqueue.support.TaskQueueSupportService;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.http.HttpServer;
 import io.vertx.ext.web.Router;

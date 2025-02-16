@@ -4,24 +4,25 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.github.colinzhu.taskqueue.internal.TaskRepo;
+import io.github.colinzhu.taskqueue.polling.Task;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
-import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.SqlConnection;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.util.List;
 
-import static io.github.colinzhu.taskqueue.TaskStatus.*;
+import static io.github.colinzhu.taskqueue.internal.TaskStatus.COMPLETED;
+import static io.github.colinzhu.taskqueue.internal.TaskStatus.PROCESSING;
 
 @Slf4j
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class TaskQueueServiceImpl implements TaskQueueService {
     private final Vertx vertx;
-    private final TaskQueueRepo taskQueueRepo = new TaskQueueRepo();
+    private final TaskRepo taskRepo = new TaskRepo();
 
     /**
      * disable SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, so the date time format will be:
@@ -42,7 +43,7 @@ class TaskQueueServiceImpl implements TaskQueueService {
         } catch (JsonProcessingException e) {
             return Future.failedFuture(e);
         }
-        return taskQueueRepo.insert(sqlConnection, queueName, refNumber, payloadStr, processDelay)
+        return taskRepo.insert(sqlConnection, queueName, refNumber, payloadStr, processDelay)
                 .map(task -> {
                     if (Duration.ZERO.equals(processDelay)) {
                         vertx.eventBus().send("poller." + queueName, task.getId());
@@ -53,43 +54,31 @@ class TaskQueueServiceImpl implements TaskQueueService {
     }
 
     @Override
-    public Future<Integer> complete(SqlConnection sqlConnection, long taskId) {
-        return complete(sqlConnection, taskId, null);
+    public <T> Future<Integer> complete(SqlConnection sqlConnection, Task<T> task) {
+        return complete(sqlConnection, task, null);
     }
 
     @Override
-    public Future<Integer> complete(SqlConnection sqlConnection, long taskId, String processResult) {
-        return taskQueueRepo.updateStatusFromWithResult(sqlConnection, taskId, PROCESSING, COMPLETED, processResult);
+    public <T> Future<Integer> complete(SqlConnection sqlConnection, Task<T> task, String processResult) {
+        return taskRepo.updateStatusFromWithResult(sqlConnection, task.getId(), PROCESSING, COMPLETED, processResult);
     }
 
     @Override
-    public Future<Integer> completeDelete(SqlConnection sqlConnection, long taskId) {
-        return taskQueueRepo.completeDelete(sqlConnection, taskId);
+    public <T> Future<Integer> completeDelete(SqlConnection sqlConnection, Task<T> task) {
+        return taskRepo.completeDelete(sqlConnection, task.getId());
     }
 
     @Override
-    public Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay) {
-        return reenqueue(sqlConnection, taskId, delay, null);
+    public <T> Future<Integer> reenqueue(SqlConnection sqlConnection, Task<T> task, Duration delay) {
+        return reenqueue(sqlConnection, task, delay, null);
     }
 
     @Override
-    public Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay, String processResult) {
-        return taskQueueRepo.reenqueue(sqlConnection, taskId, delay, processResult);
+    public <T> Future<Integer> reenqueue(SqlConnection sqlConnection, Task<T> task, Duration delay, String processResult) {
+        return taskRepo.reenqueue(sqlConnection, task.getId(), delay, processResult);
         // not sending new task notification to poller, the task will wait for some time before being processed, max noTaskInterval
         // because:
         // 1. usually reenqueue should have a delay
         // 2. there is no direct queue name to send notification
-    }
-
-    public Future<Integer> fail(SqlConnection sqlConnection, long taskId, String processResult) {
-        return taskQueueRepo.updateStatusFromWithResult(sqlConnection, taskId, PROCESSING, ERROR, processResult);
-    }
-
-    Future<List<TaskEntity>> fetchBatch(JDBCPool pool, String queueName, int batchSize, Duration nextProcessDelay) {
-        return pool.withTransaction(sqlConnection -> taskQueueRepo.checkout(sqlConnection, queueName, batchSize, nextProcessDelay));
-    }
-
-    Future<List<TaskEntity>> fetchBatch2(JDBCPool pool, String queueName, int batchSize, Duration nextProcessDelay, String pollerInstance) {
-        return taskQueueRepo.checkout2(pool, queueName, batchSize, nextProcessDelay, pollerInstance);
     }
 }

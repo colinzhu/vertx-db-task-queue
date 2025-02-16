@@ -1,5 +1,6 @@
 package io.github.colinzhu.taskqueue;
 
+import io.github.colinzhu.taskqueue.polling.Task;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.sqlclient.SqlConnection;
@@ -45,44 +46,44 @@ public interface TaskQueueService {
     /**
      * Completes a task without setting a process result.
      * @param sqlConnection DB transaction
-     * @param taskId the task ID
+     * @param task the task
      * @return future of number of task updated
      */
-    Future<Integer> complete(SqlConnection sqlConnection, long taskId);
+    <T> Future<Integer> complete(SqlConnection sqlConnection, Task<T> task);
 
     /**
      * Completes a task and sets a process result.
      * @param sqlConnection DB transaction
-     * @param taskId the task ID
+     * @param task the task
      * @param processResult the process result
      * @return future of number of task updated
      */
-    Future<Integer> complete(SqlConnection sqlConnection, long taskId, String processResult);
+    <T> Future<Integer> complete(SqlConnection sqlConnection, Task<T> task, String processResult);
 
     /**
      * Completes a task by deleting it from the queue.
      * @param sqlConnection DB transaction
-     * @param taskId the task ID
+     * @param task the task
      * @return future of number of task deleted
      */
-    Future<Integer> completeDelete(SqlConnection sqlConnection, long taskId);
+    <T> Future<Integer> completeDelete(SqlConnection sqlConnection, Task<T> task);
 
     /**
      * Reenqueues a task so that it can be processed again later.
      * @param sqlConnection DB transaction
-     * @param taskId the task ID
+     * @param task the task
      * @param delay process delay time after putting into the queue
      * @return future of number of task updated
      */
-    Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay);
+    <T> Future<Integer> reenqueue(SqlConnection sqlConnection, Task<T> task, Duration delay);
 
     /**
      * Reenqueues a task so that it can be processed again later and sets a process result.
      * @param sqlConnection DB transaction
-     * @param taskId the task ID
+     * @param task the task
      * @param delay process delay time after putting into the queue
      * @param processResult current process result before the next process
      * @return future of number of task updated
      */
-    Future<Integer> reenqueue(SqlConnection sqlConnection, long taskId, Duration delay, String processResult);
+    <T> Future<Integer> reenqueue(SqlConnection sqlConnection, Task<T> task, Duration delay, String processResult);
 }

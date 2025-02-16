@@ -1,12 +1,17 @@
-package io.github.colinzhu.taskqueue;
+package io.github.colinzhu.taskqueue.polling.verticle;
 
+import io.github.colinzhu.taskqueue.polling.TaskPoller;
+import io.github.colinzhu.taskqueue.polling.TaskPollerConfig;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.jdbcclient.JDBCPool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import io.vertx.core.Vertx;
+
 import java.util.function.Supplier;
+
+import static io.github.colinzhu.taskqueue.internal.EventAddress.POLLER_PAUSE_PREFIX;
+import static io.github.colinzhu.taskqueue.internal.EventAddress.POLLER_START_PREFIX;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -15,8 +20,6 @@ public class TaskPollerVerticle<T> extends AbstractVerticle {
     private final TaskPollerConfig<T> config;
     private TaskPoller<T> poller;
 
-    private static final String POLLER_PAUSE_PREFIX = "taskqueue.poller.pause.";
-    private static final String POLLER_START_PREFIX = "taskqueue.poller.start.";
 
     @Override
     public void start() {
@@ -44,13 +47,5 @@ public class TaskPollerVerticle<T> extends AbstractVerticle {
     @Override
     public String toString() {
         return this.getClass().getSimpleName() + "-" + config.getQueueName() + "-" + Integer.toHexString(hashCode());
-    }
-
-    static void pausePoller(Vertx vertx, String queueName) {
-        vertx.eventBus().publish(POLLER_PAUSE_PREFIX + queueName, null);
-    }
-
-    static void startPoller(Vertx vertx, String queueName) {
-        vertx.eventBus().publish(POLLER_START_PREFIX + queueName, null);
     }
 }

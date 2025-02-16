@@ -3,6 +3,11 @@ package io.github.colinzhu.taskqueue;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import io.github.colinzhu.taskqueue.example.Payment;
+import io.github.colinzhu.taskqueue.internal.TaskStatus;
+import io.github.colinzhu.taskqueue.polling.Task;
+import io.github.colinzhu.taskqueue.polling.TaskPollerConfig;
+import io.github.colinzhu.taskqueue.polling.verticle.TaskPollerVerticle;
+import io.github.colinzhu.taskqueue.polling.verticle.TaskProcessorVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -23,8 +28,8 @@ import java.time.OffsetDateTime;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static io.github.colinzhu.taskqueue.TaskStatus.COMPLETED;
-import static io.github.colinzhu.taskqueue.TaskStatus.CREATED;
+import static io.github.colinzhu.taskqueue.internal.TaskStatus.COMPLETED;
+import static io.github.colinzhu.taskqueue.internal.TaskStatus.CREATED;
 import static org.slf4j.Logger.ROOT_LOGGER_NAME;
 
 @ExtendWith(VertxExtension.class)
@@ -33,14 +38,14 @@ class TaskQueueTest {
     private static JDBCPool pool;
     private static Supplier<JDBCPool> poolSupplier;
     private static TaskQueueService taskQueueService;
-
+    private static final String POLLER_PAUSE_PREFIX = "taskqueue.poller.pause.";
     @BeforeAll
     static void init(Vertx vertx, VertxTestContext testContext) {
         setLogLevel(ROOT_LOGGER_NAME, Level.INFO);
         setLogLevel("com.mchange.v2.resourcepool.BasicResourcePool", Level.INFO);
         setLogLevel("io.github.colinzhu.taskqueue", Level.DEBUG);
-        setLogLevel("io.github.colinzhu.taskqueue.TaskQueueRepo", Level.DEBUG);
-        setLogLevel("io.github.colinzhu.taskqueue.TaskPoller", Level.DEBUG);
+        setLogLevel("io.github.colinzhu.taskqueue.internal.TaskRepo", Level.DEBUG);
+        setLogLevel("io.github.colinzhu.taskqueue.polling.TaskPoller", Level.DEBUG);
 
         taskQueueService = TaskQueueService.taskQueue(vertx);
         Database db = Database.get(Database.H2_MEM);
@@ -74,11 +79,11 @@ class TaskQueueTest {
             log.info("Processing {}", task.getPayload());
             Function<SqlConnection, Future<Integer>> function;
             if ("REENQUEUE".equals(afterProcessAction)) {
-                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5))); // when verify in 1 sec, not yet in processing status
+                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.reenqueue(conn, task, Duration.ofSeconds(5))); // when verify in 1 sec, not yet in processing status
             } else if ("COMPLETE".equals(afterProcessAction)) {
-                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.complete(conn, task.getId()));
+                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.complete(conn, task));
             } else {
-                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.completeDelete(conn, task.getId()));
+                function = conn -> updatePayment(conn, task.getPayload()).compose(p -> taskQueueService.completeDelete(conn, task));
             }
             return pool.withTransaction(function);
         };
@@ -137,13 +142,13 @@ class TaskQueueTest {
             // simulate task already finished by another poller (payment status updated to "ABC", task deleted
             Future<Integer> futureOfAnother;
             if ("COMPLETE_DELETE".equals(afterProcessAction)) {
-                futureOfAnother = pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskQueueService.completeDelete(conn, task.getId())));
+                futureOfAnother = pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskQueueService.completeDelete(conn, task)));
             } else {
-                futureOfAnother = pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskQueueService.complete(conn, task.getId())));
+                futureOfAnother = pool.withTransaction(conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_ANOTHER_POLLER").compose(p -> taskQueueService.complete(conn, task)));
             }
 
             Function<SqlConnection, Future<Integer>> function = conn -> updatePaymentTo(conn, task.getPayload(), "STATUS_CURRENT_POLLER")
-                    .compose(p -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5)));
+                    .compose(p -> taskQueueService.reenqueue(conn, task, Duration.ofSeconds(5)));
 
             return futureOfAnother.compose(any -> pool.withTransaction(function));
         };
@@ -195,7 +200,7 @@ class TaskQueueTest {
         Function<Task<Payment>, Future<?>> taskProcessor = task -> {
             log.info("Processing {}", task.getPayload());
             return pool.withTransaction(conn -> updatePayment(conn, task.getPayload())
-                    .compose(p -> taskQueueService.reenqueue(conn, task.getId(), Duration.ofSeconds(5))));
+                    .compose(p -> taskQueueService.reenqueue(conn, task, Duration.ofSeconds(5))));
         };
 
         // prepare a poller
@@ -208,7 +213,8 @@ class TaskQueueTest {
                 .compose(any -> vertx.deployVerticle(pollerVerticle));
 
         deployVerticles.onSuccess(any -> {
-            TaskPollerVerticle.pausePoller(vertx, taskPollerConfig.getQueueName());
+            vertx.eventBus().publish(POLLER_PAUSE_PREFIX + taskPollerConfig.getQueueName(), null);
+
             // stop the poller
 //            vertx.setTimer(1000, id -> pollerVerticle.stopPoller()
 //                    .onSuccess(v -> log.info("poller stopped."))
@@ -256,7 +262,7 @@ class TaskQueueTest {
                             throw new RuntimeException("simulate exception within transaction");
                         }
                         return updateCount;
-                    }).compose(count -> taskQueueService.complete(conn, task.getId()));
+                    }).compose(count -> taskQueueService.complete(conn, task));
             return pool.withTransaction(updatePaymentFunc);
         };
 

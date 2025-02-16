@@ -1,10 +1,10 @@
-package io.github.colinzhu.taskqueue;
+package io.github.colinzhu.taskqueue.internal;
 
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class TaskQueueUtilsTest {
+class TaskRepoTest {
 
     @Test
     void testTruncateToUtf8ByteLength_withChineseCharacters_exceedLength() {
@@ -12,7 +12,7 @@ class TaskQueueUtilsTest {
         String expected = "测试测";
         int length = 10;
 
-        String actual = TaskQueueUtils.truncateToUtf8ByteLength(input, length);
+        String actual = TaskRepo.truncateToUtf8ByteLength(input, length);
 
         assertByteLength(actual, length);
         assertEquals(expected, actual);
@@ -24,7 +24,7 @@ class TaskQueueUtilsTest {
         String expected = "测试测";
         int length = 10;
 
-        String actual = TaskQueueUtils.truncateToUtf8ByteLength(input, length);
+        String actual = TaskRepo.truncateToUtf8ByteLength(input, length);
 
         assertByteLength(actual, length);
         assertEquals(expected, actual);
@@ -32,7 +32,7 @@ class TaskQueueUtilsTest {
 
     @Test
     void testTruncateToUtf8ByteLength_withNullInput() {
-        assertNull(TaskQueueUtils.truncateToUtf8ByteLength(null, 10));
+        assertNull(TaskRepo.truncateToUtf8ByteLength(null, 10));
     }
 
     @Test
@@ -41,7 +41,7 @@ class TaskQueueUtilsTest {
         String expected = "Hello";
         int length = 10;
 
-        String actual = TaskQueueUtils.truncateToUtf8ByteLength(input, length);
+        String actual = TaskRepo.truncateToUtf8ByteLength(input, length);
 
         assertByteLength(actual, length);
         assertEquals(expected, actual);
@@ -53,7 +53,7 @@ class TaskQueueUtilsTest {
         String expected = "HelloHello";
         int length = 10;
 
-        String actual = TaskQueueUtils.truncateToUtf8ByteLength(input, length);
+        String actual = TaskRepo.truncateToUtf8ByteLength(input, length);
 
         assertByteLength(actual, length);
         assertEquals(expected, actual);
