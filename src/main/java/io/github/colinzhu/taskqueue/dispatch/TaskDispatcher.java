@@ -70,6 +70,7 @@ public class TaskDispatcher<T> {
             return new Task<>(
                     taskEntity.getId(),
                     taskEntity.getQueueName(),
+                    taskEntity.getReferenceNumber(),
                     taskEntity.getAttempt(),
                     OBJECT_MAPPER.readValue(taskEntity.getPayload(), payloadClass)
             );

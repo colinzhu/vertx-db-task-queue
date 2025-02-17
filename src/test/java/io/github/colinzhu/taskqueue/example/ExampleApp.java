@@ -3,13 +3,14 @@ package io.github.colinzhu.taskqueue.example;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import io.github.colinzhu.taskqueue.Database;
+import io.github.colinzhu.taskqueue.bridge.TaskHttpSender;
 import io.github.colinzhu.taskqueue.dispatch.TaskDispatchConfig;
 import io.github.colinzhu.taskqueue.dispatch.TaskDispatchVerticle;
 import io.github.colinzhu.taskqueue.enqueue.TaskEnqueueService;
 import io.github.colinzhu.taskqueue.example.check.PaymentCheckTaskProcessor;
-import io.github.colinzhu.taskqueue.example.release.PaymentReleaseTaskProcessor;
 import io.github.colinzhu.taskqueue.process.TaskProcessService;
 import io.github.colinzhu.taskqueue.process.TaskProcessVerticle;
+import io.github.colinzhu.taskqueue.process.TaskProcessor;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.jvm.ClassLoaderMetrics;
 import io.micrometer.core.instrument.binder.jvm.JvmMemoryMetrics;
@@ -18,6 +19,7 @@ import io.micrometer.core.instrument.binder.system.ProcessorMetrics;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
+import io.vertx.ext.web.client.WebClient;
 import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.micrometer.MicrometerMetricsOptions;
 import io.vertx.micrometer.VertxInfluxDbOptions;
@@ -72,11 +74,18 @@ public class ExampleApp {
         TaskDispatchConfig<Payment> taskPollerCheckConfig = new TaskDispatchConfig<>("payment.check", Payment.class).setBatchSize(20);
         TaskDispatchConfig<Payment> taskPollerReleaseConfig = new TaskDispatchConfig<>("payment.release", Payment.class).setBatchSize(20);
 
-        vertx.deployVerticle(new TaskProcessVerticle<>(taskPollerCheckConfig.getQueueName(), () -> new PaymentCheckTaskProcessor(vertx, poolSupplier, TaskEnqueueService.taskQueue(vertx), TaskProcessService.getInstance())))
-                .compose(any -> vertx.deployVerticle(new TaskProcessVerticle<>(taskPollerReleaseConfig.getQueueName(), () -> new PaymentReleaseTaskProcessor(vertx, poolSupplier, TaskProcessService.getInstance()))))
-                .compose(any -> vertx.deployVerticle(new TaskDispatchVerticle<>(poolSupplier, taskPollerCheckConfig)))
-                .compose(any -> vertx.deployVerticle(new TaskDispatchVerticle<>(poolSupplier, taskPollerReleaseConfig)))
-                .compose(any -> vertx.deployVerticle(() -> new WebVerticle(pool), new DeploymentOptions().setInstances(2)))
+        deploy(vertx, pool, () -> new PaymentCheckTaskProcessor(vertx, poolSupplier, TaskEnqueueService.taskQueue(vertx), TaskProcessService.getInstance()), taskPollerCheckConfig);
+//        deploy(vertx, pool, () -> new PaymentReleaseTaskProcessor(vertx, poolSupplier, TaskProcessService.getInstance()), taskPollerReleaseConfig);
+        deploy(vertx, pool, () -> new TaskHttpSender<>(WebClient.create(vertx), "http://127.0.0.1:8080/taskqueue/bridge/receive", pool), taskPollerReleaseConfig);
+        vertx.deployVerticle(() -> new WebVerticle(pool), new DeploymentOptions().setInstances(2))
+                .onSuccess(any -> log.info("Successfully deployed WebVerticle"))
+                .onFailure(err -> log.error("error", err));
+    }
+
+    private static <T> void deploy(Vertx vertx, JDBCPool pool, Supplier<TaskProcessor<T>> taskProcessorSupplier, TaskDispatchConfig<T> config) {
+        vertx.deployVerticle(new TaskProcessVerticle<>(config.getQueueName(), taskProcessorSupplier))
+                .compose(any -> vertx.deployVerticle(new TaskDispatchVerticle<>(() -> pool, config)))
+                .onSuccess(any -> log.info("Successfully deployed verticles for {}", config.getQueueName()))
                 .onFailure(err -> log.error("error", err));
     }
 

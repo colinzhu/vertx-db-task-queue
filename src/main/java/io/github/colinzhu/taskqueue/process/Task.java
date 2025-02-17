@@ -7,6 +7,7 @@ import java.io.Serializable;
 public class Task<T> implements Serializable {
     long id;
     String queueName;
+    String refNumber;
     long attempt;
     T payload;
 }
