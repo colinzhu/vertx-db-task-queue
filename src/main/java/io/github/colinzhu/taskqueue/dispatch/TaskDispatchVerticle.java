@@ -31,7 +31,10 @@ public class TaskDispatchVerticle<T> extends AbstractVerticle {
         }
 
         vertx.eventBus().consumer(POLLER_PAUSE_PREFIX + config.getQueueName(), msg -> poller.stop().onSuccess(v -> log.info("{} paused", this)));
-        vertx.eventBus().consumer(POLLER_START_PREFIX + config.getQueueName(), msg -> { poller.start(); log.info("{} started", this); });
+        vertx.eventBus().consumer(POLLER_START_PREFIX + config.getQueueName(), msg -> {
+            poller.start();
+            log.info("{} started", this);
+        });
 
         log.info("{} created", this);
     }

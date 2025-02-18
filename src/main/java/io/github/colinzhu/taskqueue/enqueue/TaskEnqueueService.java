@@ -13,16 +13,17 @@ import java.time.Duration;
  * </pre>
  */
 public interface TaskEnqueueService {
-    static TaskEnqueueService taskQueue(Vertx vertx) {
+    static TaskEnqueueService getInstance(Vertx vertx) {
         return new TaskEnqueueServiceImpl(vertx);
     }
 
     /**
      * Enqueues a task into the task queue with no delay time.
+     *
      * @param sqlConnection DB transaction
      * @param queueName     queue name
      * @param refNumber     reference number of payload
-     * @param payload       payload object which will be marshalled to json string
+     * @param payload       string or payload object which will be marshalled to json string
      * @param <T>           task payload type
      * @return future of a task id
      */
@@ -30,10 +31,11 @@ public interface TaskEnqueueService {
 
     /**
      * Enqueues a task into the task queue with a delay time.
+     *
      * @param sqlConnection DB transaction
      * @param queueName     queue name
      * @param refNumber     reference number of payload
-     * @param payload       payload object which will be marshalled to json string
+     * @param payload       string payload object which will be marshalled to json string
      * @param delay         process delay time after putting into the queue
      * @param <T>           task payload type
      * @return future of a task which has been stored into task queue

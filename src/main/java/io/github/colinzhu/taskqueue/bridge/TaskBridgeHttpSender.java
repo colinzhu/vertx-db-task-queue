@@ -11,7 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @RequiredArgsConstructor
 @Slf4j
-public class TaskHttpSender<T> implements TaskProcessor<T> {
+public class TaskBridgeHttpSender implements TaskProcessor<String> {
 
     private final WebClient client;
     private final String url;
@@ -19,15 +19,17 @@ public class TaskHttpSender<T> implements TaskProcessor<T> {
     private final TaskProcessService taskProcessService = TaskProcessService.getInstance();
 
     @Override
-    public Future<Void> process(Task<T> task) {
+    public Future<Void> process(Task<String> task) {
         log.info("Sending task {} to {}", task, url);
-        return client.post(8080, "localhost", "/taskqueue/bridge/receive").sendJson(task)
-                .onFailure(throwable -> log.error("err", throwable))
+        return client.postAbs(url).sendJson(task)
+                .onSuccess(res -> log.info("Successfully sent task {} to {}", task, url))
+                .onFailure(throwable -> log.error("Error sending task {} to {}", task, url, throwable))
                 .map(res -> {
                     if (res.statusCode() != 200) {
                         throw new RuntimeException("Failed to send task to " + url + ", status code: " + res.statusCode() + ", body: " + res.bodyAsString());
                     }
                     return null;
-                }).compose(voidFuture -> pool.withTransaction(conn -> taskProcessService.complete(conn, task)));
+                })
+                .compose(voidFuture -> pool.withTransaction(conn -> taskProcessService.complete(conn, task)));
     }
 }

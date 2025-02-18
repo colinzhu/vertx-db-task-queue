@@ -47,7 +47,7 @@ public class TaskDispatcher<T> {
         this.vertx = vertx;
         this.pool = pool;
         this.config = config;
-        this.dispatcherInstance = "poller-" +  UUID.randomUUID(); // add "poller-" prefix to solve oracle storing uuid issue
+        this.dispatcherInstance = "poller-" + UUID.randomUUID(); // add "poller-" prefix to solve oracle storing uuid issue
         this.dispatcherId = "poller-" + config.getQueueName() + "-" + dispatcherInstance;
 
         String eventBusAddress = "poller." + config.getQueueName();
@@ -67,12 +67,18 @@ public class TaskDispatcher<T> {
 
     private static <T> Task<T> convertTaskEntityToTask(TaskEntity taskEntity, Class<T> payloadClass) {
         try {
+            T payload;
+            if (String.class.equals(payloadClass)) {
+                payload = payloadClass.cast(taskEntity.getPayload());
+            } else {
+                payload = OBJECT_MAPPER.readValue(taskEntity.getPayload(), payloadClass);
+            }
             return new Task<>(
                     taskEntity.getId(),
                     taskEntity.getQueueName(),
                     taskEntity.getReferenceNumber(),
                     taskEntity.getAttempt(),
-                    OBJECT_MAPPER.readValue(taskEntity.getPayload(), payloadClass)
+                    payload
             );
         } catch (JsonProcessingException e) {
             throw new RuntimeException("failed to deserialize JSON string to object. JSON: " + taskEntity.getPayload(), e);
@@ -189,7 +195,7 @@ public class TaskDispatcher<T> {
         return pool.withConnection(conn -> fail(conn, taskEntity.getId(), getStackTrace(err))
                         .onSuccess(count -> log.info("{} updated task status to ERROR, taskId={}, time={}ms", dispatcherId, taskEntity.getId(), System.currentTimeMillis() - start))
                         .onFailure(e -> log.error("{} failed to update task status to ERROR, taskId={}", dispatcherId, taskEntity.getId(), e))
-                        .onComplete(result -> recordTime("process.single", start,"result", result.succeeded() ? "success" : "failure")))
+                        .onComplete(result -> recordTime("process.single", start, "result", result.succeeded() ? "success" : "failure")))
                 .map(count -> null); // in order to convert Future<Integer> to align with eventbus.request's return type Future<Message<Object>>
     }
 

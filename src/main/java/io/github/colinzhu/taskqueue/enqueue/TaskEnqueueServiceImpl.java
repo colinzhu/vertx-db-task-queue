@@ -31,11 +31,16 @@ class TaskEnqueueServiceImpl implements TaskEnqueueService {
     public <T> Future<Void> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload) {
         return enqueue(sqlConnection, queueName, refNumber, payload, Duration.ZERO);
     }
+
     @Override
     public <T> Future<Void> enqueue(SqlConnection sqlConnection, String queueName, String refNumber, T payload, Duration processDelay) {
         String payloadStr;
         try {
-            payloadStr = objectMapper.writeValueAsString(payload);
+            if (payload instanceof String) {
+                payloadStr = (String) payload;
+            } else {
+                payloadStr = objectMapper.writeValueAsString(payload);
+            }
         } catch (JsonProcessingException e) {
             return Future.failedFuture(e);
         }

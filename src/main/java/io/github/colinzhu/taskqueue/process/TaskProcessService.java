@@ -19,16 +19,18 @@ public interface TaskProcessService {
 
     /**
      * Completes a task without setting a process result.
+     *
      * @param sqlConnection DB transaction
-     * @param task the task
+     * @param task          the task
      * @return future of number of task updated
      */
     <T> Future<Void> complete(SqlConnection sqlConnection, Task<T> task);
 
     /**
      * Completes a task and sets a process result.
+     *
      * @param sqlConnection DB transaction
-     * @param task the task
+     * @param task          the task
      * @param processResult the process result
      * @return future of number of task updated
      */
@@ -36,26 +38,29 @@ public interface TaskProcessService {
 
     /**
      * Completes a task by deleting it from the queue.
+     *
      * @param sqlConnection DB transaction
-     * @param task the task
+     * @param task          the task
      * @return future of number of task deleted
      */
     <T> Future<Void> completeDelete(SqlConnection sqlConnection, Task<T> task);
 
     /**
      * Reenqueues a task so that it can be processed again later.
+     *
      * @param sqlConnection DB transaction
-     * @param task the task
-     * @param delay process delay time after putting into the queue
+     * @param task          the task
+     * @param delay         process delay time after putting into the queue
      * @return future of number of task updated
      */
     <T> Future<Void> reenqueue(SqlConnection sqlConnection, Task<T> task, Duration delay);
 
     /**
      * Reenqueues a task so that it can be processed again later and sets a process result.
+     *
      * @param sqlConnection DB transaction
-     * @param task the task
-     * @param delay process delay time after putting into the queue
+     * @param task          the task
+     * @param delay         process delay time after putting into the queue
      * @param processResult current process result before the next process
      * @return future of number of task updated
      */

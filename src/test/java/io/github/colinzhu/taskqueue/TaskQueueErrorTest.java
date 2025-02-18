@@ -42,7 +42,7 @@ class TaskQueueErrorTest {
         setLogLevel("io.github.colinzhu.taskqueue.internal.TaskRepo", Level.DEBUG);
         setLogLevel("io.github.colinzhu.taskqueue.dispatch.TaskDispatcher", Level.DEBUG);
 
-        taskEnqueueService = TaskEnqueueService.taskQueue(vertx);
+        taskEnqueueService = TaskEnqueueService.getInstance(vertx);
         taskProcessService = TaskProcessService.getInstance();
         Database db = Database.get(Database.H2_MEM);
         pool = db.getJdbcPool(vertx);
