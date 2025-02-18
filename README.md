@@ -218,6 +218,7 @@ CREATE INDEX IDX_QNM_ST_NXT_PROC_TM ON TASKS(QUEUE_NAME, STATUS, NEXT_PROCESS_TI
 - [x] 2023-12-10 change support UI layout - swap row and column
 - [x] 2023-12-11 enhance DB error retry logic
 - [x] 2025-02-03 split logics into modules in different packages
+- [x] 2025-02-18 add task bridge feature
 - [ ] study the UUID poller instance impact
 - [ ] support start and stop poller from support web page
 - [ ] integrate with 'workflow engine'

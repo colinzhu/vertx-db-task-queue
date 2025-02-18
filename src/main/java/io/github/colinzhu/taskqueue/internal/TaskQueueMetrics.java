@@ -15,7 +15,7 @@ public class TaskQueueMetrics {
         if (registry == null) {
             return;
         }
-        Timer.builder(name).tags("queue",queueName).tags(tags).register(registry)
+        Timer.builder(name).tags("queue", queueName).tags(tags).register(registry)
                 .record(System.currentTimeMillis() - startTime, MILLISECONDS);
     }
 }

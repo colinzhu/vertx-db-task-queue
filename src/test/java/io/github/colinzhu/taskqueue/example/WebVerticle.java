@@ -1,5 +1,6 @@
 package io.github.colinzhu.taskqueue.example;
 
+import io.github.colinzhu.taskqueue.bridge.TaskBridgeHttpReceiver;
 import io.github.colinzhu.taskqueue.enqueue.TaskEnqueueService;
 import io.github.colinzhu.taskqueue.example.create.PaymentCreateHandler;
 import io.github.colinzhu.taskqueue.support.TaskQueueSupportHandler;
@@ -24,7 +25,8 @@ public class WebVerticle extends AbstractVerticle {
         HttpServer server = vertx.createHttpServer();
         Router router = Router.router(vertx);
         router.route("/taskqueue/*").subRouter(new TaskQueueSupportHandler(vertx, pool, TaskQueueSupportService.getInstance()).get());
-        router.route("/taskqueue/*").subRouter(new PaymentCreateHandler(vertx, pool, TaskEnqueueService.taskQueue(vertx)).get());
+        router.route("/taskqueue/*").subRouter(new PaymentCreateHandler(vertx, pool, TaskEnqueueService.getInstance(vertx)).get());
+        router.route("/taskqueue/bridge/receive").handler((new TaskBridgeHttpReceiver(pool, TaskEnqueueService.getInstance(vertx)).queueNameMapper(oriName -> oriName + ".remote")));
 
         String logMsg = """
                 WebVerticle started, instance={}
@@ -38,7 +40,7 @@ public class WebVerticle extends AbstractVerticle {
                 http://localhost:#{port}/taskqueue/support/web/
                 """;
 
-        server.requestHandler(router).listen(0)
+        server.requestHandler(router).listen(8080)
                 .onSuccess(httpServer -> log.info(logMsg.replace("#{port}", String.valueOf(httpServer.actualPort())), Integer.toHexString(this.hashCode())))
                 .onFailure(err -> log.error("failed to start task queue support.", err));
     }

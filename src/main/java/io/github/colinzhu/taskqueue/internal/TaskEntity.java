@@ -19,8 +19,8 @@ public class TaskEntity implements Serializable {
     OffsetDateTime createTime;
     OffsetDateTime nextProcessTime;
     OffsetDateTime lastUpdateTime;
-    @ToString. Exclude
+    @ToString.Exclude
     String payload;
-    @ToString. Exclude
+    @ToString.Exclude
     String processResult;
 }
