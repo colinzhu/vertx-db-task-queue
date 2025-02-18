@@ -1,57 +1,45 @@
 # Vert.x DB Task Queue
 
-## Overview
-A task queue implemented with database and vert.x
+A lightweight, database-backed task queue implementation based on Vert.x. It provides a reliable asynchronous task processing solution without the need for dedicated message queue middleware.
 
-If you don't want to introduce MQ into your application, but still want to have "queues", so that your application can process tasks asynchronously, then maybe this is a tool for you.
-- Very simple API
-- Resilience and performance - multiple instances can monitor the same queue concurrently
-- Auto recover - if one instance is down, the outstanding tasks will be auto processed by another instance
-- API to support exception cases
+## Overview
+
+Vert.x DB Task Queue uses a database as persistent storage and leverages Vert.x's asynchronous capabilities to achieve high availability and reliable task processing. It's designed to be simple, reliable, and easy to integrate into existing systems.
 
 ## Features
-- Enqueue - put a task into a queue, and persist it into database
-- Reenqueue - put a task back to the queue, so that it can be processed again
-- Poller - take tasks from a queue and process the tasks
-- Complete - mark the tasks as COMPLETED or delete the tasks when they are processed successfully
-- Fail - auto mark the tasks as ERROR if they are not processed successfully
-- Delay processing - set a delay period when enqueue / reenqueue a task
-- IT support - APIs and Web UI to:
-  1. monitor all the tasks status
-  2. reprocess ERROR tasks
-  3. mark the ERROR tasks as POISON, or mark POISON back to ERROR 
-  4. delete POISON tasks
 
-## Try with the `ExampleApp`
-In this repository, there is an `ExampleApp` which shows how to use this library. 
-The `ExampleApp` will auto create an H2 database (http://localhost:9091/) and create the required tables when it's started.
-Here are the steps to run the `ExampleApp`.
-1. Clone this repository
-2. Run `mvn compile`, this step will extract and copy the required css and js file from webjars
-3. Run `ExampleApp.main()`
-4. That's all, you can start to play with it now:
-   - Launch the task queue support page: http://localhost:31111/taskqueue/support/web/
-   - Trigger to create example tasks (change the number in the URL to create any number of tasks): http://localhost:31111/taskqueue/create/1
-   - Click the "Refresh" button from the task queue support page
+- **Simple Integration**
+  - Minimal dependencies (only requires a database)
+  - Clean and intuitive API
+  - Easy to set up and configure
 
-## Main APIs
-- `Task<T>` - Represents a task to be processed by a processor `Function<Task<T>, Future<?>>`
-- `TaskPollerVerticle<T>` - The verticle which wraps a TaskPoller to poll tasks from DB and invoke a task processor
-- `TaskProcessorVerticle<T>` - The verticle which wraps a task processor to process a task
-- `PollConfig<T>` - A simple class to store the poller config
-- `TaskQueueService` - Service to
-  1. enqueue - put task into queue
-  2. reenqueue - put a task back to the queue again for next processing
-  3. mark the task as COMPLETED
-  4. mark the task as ERROR
-- `TaskQueueSupportService` - Service to
-  1. retrieve tasks
-  2. reprocess ERROR tasks
-  3. mark the ERROR tasks as POISON, or mark POISON back to ERROR
-  4. delete POISON tasks
+- **Reliable Processing**
+  - Persistent task storage
+  - Transaction support
+  - Automatic retry mechanism
+  - Poison task handling
+
+- **Scalable Architecture**
+  - Multi-instance support
+  - Concurrent processing
+  - Horizontal scaling capability
+
+- **Operational Excellence**
+  - Web-based management UI
+  - Task monitoring and statistics
+  - Runtime control (pause/resume)
+  - Task lifecycle management
+
+- **Flexible Integration**
+  - HTTP bridge support
+  - Custom task processor
+  - Cross-system task transfer
+  - JSON-based payload
 
 ## Key Design
-How does multiple pollers fetch same tasks from same queue without conflict? There are 2 approaches:
+
+### 1. How does multiple pollers fetch same tasks from same queue without conflict? There are 2 approaches:
+
 - Approach 1: select tasks for update skip locked -> update conditions so that the tasks will not be selected by another instance
 - Approach 2: all instances try to update tasks, if they try to update the same tasks, one will succeed, the others will fail with update count 0 ->  select the updated tasks
   - For example, initial state like this:
@@ -63,7 +51,7 @@ How does multiple pollers fetch same tasks from same queue without conflict? The
     | 3  | A     | PROCESSING | 222             | now - 3sec        | will be checked out now, though it's marked with poller '222', but the next process time already passed |
     | 4  | A     | PROCESSING | 111             | 15 mins later     | being processed by '111'                                                                                |
     | 5  | B     | CREATED    |                 |                   |                                                                                                         |
-  
+
   - now update with below SQL, it will be:
     ``` oracle-sql
     UPDATE TASKS SET 
@@ -92,54 +80,48 @@ How does multiple pollers fetch same tasks from same queue without conflict? The
       AND POLLER_INSTANCE = #{pollerInstance} 
       AND NEXT_PROCESS_TIME > #{now}
   ```
-## Usage
-Enqueue a task - `TaskQueueService.enqueue()`
 
-NOTE: make sure the DB change of the business logic and the task queue change are in the same transaction,
-so that if any step fails, both can be rolled back.
+### 2. Task States
 
-Example:
-```java
-pool.withTransaction(conn -> insertPayment(conn, p)
-    .compose(payment -> taskEnqueueService.enqueue(conn, "payment.check", "REF_" + payment.getId(), payment)))
 ```
-Create a `TaskProcessorVerticle` to process a task, which is retrieved from event bus
-Create a `TaskPollerVerticle` to fetch tasks from a queue, and send to the `TaskProcessorVerticle` through event bus
-
-Example:
-```java
-// prepare a task poller config
-TaskPollerConfig<Payment> taskPollerReleaseConfig = new TaskPollerConfig<>("payment.release", Payment.class);
-
-// prepare a taskProcessor
-PaymentReleaseTaskProcessor paymentReleaseTaskProcessor = new PaymentReleaseTaskProcessor(vertx, pool, TaskQueueService.taskQueue(vertx));
-
-// deploy TaskProcessVerticle
-vertx.deployVerticle(() -> new TaskProcessorVerticle<>(taskPollerReleaseConfig.getQueueName(), paymentReleaseTaskProcessor), new DeploymentOptions().setInstances(3));
-
-// deploy TaskDispatchVerticle
-vertx.deployVerticle(() -> new TaskPollerVerticle<>(pool, taskPollerReleaseConfig), new DeploymentOptions().setInstances(1));
-```
-Within the task processor, complete a task
-
-NOTE: make sure the DB change of the business logic and the task queue change are in the same transaction,
-so that if any step fails, both can be rolled back.
-
-Example:
-```java
-txn.query("UPDATE PAYMENT SET STATUS = 'PENDING_RELEASE' WHERE ID = " + payment.getId())
-    .execute()
-    .compose(res -> taskEnqueueService.complete(txn, task.getId()));
+┌─────────┐     ┌────────────┐     ┌───────────┐
+│ CREATED │────>│ PROCESSING │────>│ COMPLETED │
+└─────────┘     └────────────┘     └───────────┘
+     │                │                  
+     │                │                  
+     │                v                  
+     │           ┌────────┐        ┌─────────┐
+     └──────────>│ ERROR  │───────>│ POISON  │
+                 └────────┘        └─────────┘
 ```
 
-## Task status
-- normal flows
-  1. CREATED -> PROCESSING -> COMPLETED / (DELETED)
-  2. CREATED -> PROCESSING -> ERROR
-- support flows
-  1. CREATED -> PROCESSING -> ERROR -> CREATED
-  2. CREATED -> PROCESSING -> ERROR -> POISON -> (DELETED)
-  3. CREATED -> PROCESSING -> ERROR -> POISON -> ERROR -> CREATED
+## Getting Started
+
+### 1. Add Dependency
+
+```xml
+<dependency>
+    <groupId>io.github.colinzhu</groupId>
+    <artifactId>vertx-db-task-queue</artifactId>
+    <version>${version}</version>
+</dependency>
+```
+
+### 2. Basic Usage
+Refer to `ExampleApp`
+
+### 3. HTTP Bridge
+Refer to `ExampleApp`
+
+## Monitoring and Support
+
+The system provides a web-based management UI for:
+
+- Task status monitoring
+- Queue statistics
+- Manual task control
+- Error handling
+- System configuration
 
 ## Installation
 - Create table
@@ -170,7 +152,7 @@ CREATE INDEX IDX_QNM_ST_NXT_PROC_TM ON TASKS(QUEUE_NAME, STATUS, NEXT_PROCESS_TI
 - [x] expose ATTEMPT in Task
 - [x] test: when 2 instances, 1 is down but with checked-out tasks in progress, the 2nd instance will continue to process
 - [x] support API: searchByQueueNameAndStatus
-- [x] support API: reprocessErrorTasks 
+- [x] support API: reprocessErrorTasks
 - [x] support API: countGroupByQueueNameAndStatus
 - [x] support API: rename reprocess to reenqueue
 - [x] support API: ERROR -> POISON
@@ -192,7 +174,7 @@ CREATE INDEX IDX_QNM_ST_NXT_PROC_TM ON TASKS(QUEUE_NAME, STATUS, NEXT_PROCESS_TI
 - [x] 2023-10-05 get bootstrap and tabulator from webjar by maven build
 - [x] 2023-10-05 rename PollConfig to TaskPollerConfig
 - [x] 2023-10-06 make TaskPollerConfig mutable, so that there is a flexibility to change the config during runtime // 2023-10-06
-- [x] 2023-10-06 rename TaskPollerConfig.nextProcessDelay to deadline 
+- [x] 2023-10-06 rename TaskPollerConfig.nextProcessDelay to deadline
 - [x] 2023-10-06 rename TaskEntityRepo to TaskQueueRepo
 - [x] 2023-10-07 create common TaskPollerVerticle and TaskProcessorVerticle
 - [x] 2023-10-07 TaskPollerVerticle invokes TaskProcessorVerticle through event bus (request and response)
@@ -226,3 +208,4 @@ CREATE INDEX IDX_QNM_ST_NXT_PROC_TM ON TASKS(QUEUE_NAME, STATUS, NEXT_PROCESS_TI
 - [ ] house keep - regularly move records to history table
 - [ ] house keep - regularly delete records in history table
 - [ ] support other store e.g. redis
+
